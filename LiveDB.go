@@ -8,20 +8,20 @@ import (
 )
 
 /*
-** LiveDB
+** DB
 */
 
 
-type LiveDBFeed chan LiveDBOp
+type DBFeed chan DBOp
 
-type LiveDBOp struct {
+type DBOp struct {
     Op      string  // SET or DEL
     Key     string
     Value   interface{}
 }
 
 
-func (op *LiveDBOp) Apply(db *LiveDB) {
+func (op *DBOp) Apply(db *DB) {
     switch strings.ToUpper(op.Op) {
         case "SET": {
             db.Set(op.Key, op.Value)
@@ -33,8 +33,8 @@ func (op *LiveDBOp) Apply(db *LiveDB) {
 }
 
 
-func ParseOp(s string) (*LiveDBOp, error) {
-    var op LiveDBOp
+func ParseOp(s string) (*DBOp, error) {
+    var op DBOp
     err := json.Unmarshal([]byte(s), &op)
     if err != nil {
         return nil, err
@@ -43,7 +43,7 @@ func ParseOp(s string) (*LiveDBOp, error) {
 }
 
 
-func (op *LiveDBOp) String() (string, error) {
+func (op *DBOp) String() (string, error) {
     s, err := json.Marshal(op)
     if err != nil {
         return "", err
@@ -53,21 +53,21 @@ func (op *LiveDBOp) String() (string, error) {
 
 
 
-type LiveDB struct {
+type DB struct {
     data        map[string]interface{}
-    subscribers []chan LiveDBOp
+    subscribers []chan DBOp
 }
 
 
-func NewLiveDB() (*LiveDB) {
-    return &LiveDB{
+func New() (*DB) {
+    return &DB{
         make(map[string]interface{}),
-        []chan LiveDBOp{},
+        []chan DBOp{},
     }
 }
 
 
-func (db *LiveDB) Json() string {
+func (db *DB) Json() string {
     s, err := json.Marshal(db.data)
     if err != nil {
         log.Fatal(err)
@@ -75,40 +75,40 @@ func (db *LiveDB) Json() string {
     return string(s)
 }
 
-func (m *LiveDB) Get(key string) interface{} {
+func (m *DB) Get(key string) interface{} {
     return m.data[key]
 }
 
-func (m *LiveDB) Set(key string, value interface{}) {
+func (m *DB) Set(key string, value interface{}) {
     for _, sub := range m.subscribers {
-        sub <- LiveDBOp{"SET", key, value,}
+        sub <- DBOp{"SET", key, value,}
     }
     m.data[key] = value
 }
 
-func (db *LiveDB) Delete(key string) {
+func (db *DB) Delete(key string) {
     for _, sub := range db.subscribers {
-        sub <- LiveDBOp{"DEL", key, nil,}
+        sub <- DBOp{"DEL", key, nil,}
     }
     delete(db.data, key)
 }
 
 
-func (m *LiveDB) Subscribe() LiveDBFeed {
-    feed := make(chan LiveDBOp)
+func (m *DB) Subscribe() DBFeed {
+    feed := make(chan DBOp)
     m.subscribers = append(m.subscribers, feed)
     return feed
 }
 
-func (db *LiveDB) UnsubscribeAll() {
+func (db *DB) UnsubscribeAll() {
     for _, sub := range db.subscribers {
         close(sub)
     }
-    db.subscribers = []chan LiveDBOp{}
+    db.subscribers = []chan DBOp{}
 }
 
 
-func (m *LiveDB) WatchKey(key string) chan *interface{} {
+func (m *DB) WatchKey(key string) chan *interface{} {
     feed := make(chan *interface{})
     lock := make(chan bool)
     go func() {
