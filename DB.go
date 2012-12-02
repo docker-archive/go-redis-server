@@ -2,6 +2,8 @@
 package livedb
 
 import (
+    "bufio"
+    "io"
     "strings"
     "encoding/json"
     "log"
@@ -20,7 +22,6 @@ type DBOp struct {
     Value   interface{}
 }
 
-
 func (op *DBOp) Apply(db *DB) {
     switch strings.ToUpper(op.Op) {
         case "SET": {
@@ -28,6 +29,9 @@ func (op *DBOp) Apply(db *DB) {
         }
         case "DEL": {
             db.Delete(op.Key)
+        }
+        case "LOAD": {
+            db.Load(op.Value.(map[string]interface{}))
         }
     }
 }
@@ -56,14 +60,28 @@ func (op *DBOp) String() (string, error) {
 type DB struct {
     data        map[string]interface{}
     subscribers []chan DBOp
+    replicating bool
 }
+
 
 
 func New() (*DB) {
     return &DB{
-        make(map[string]interface{}),
-        []chan DBOp{},
+        data:   make(map[string]interface{}),
     }
+}
+
+
+func (db *DB) Send() {
+    data := db.Data()
+    // FIXME: serialize replication operations to avoid race condition
+    db.replicating = true
+    db.dispatch(DBOp{"LOAD", "", data,})
+}
+
+
+func (db *DB) Data() map[string]interface{} {
+    return db.data
 }
 
 
@@ -75,27 +93,53 @@ func (db *DB) Json() string {
     return string(s)
 }
 
+
+func (db *DB) Load(data map[string] interface{}) {
+    for key := range db.data {
+        delete(db.data, key)
+    }
+    for key, value := range data {
+        db.data[key] = value
+    }
+}
+
+func (db *DB) LoadJson(s string) error {
+    data := make(map[string]interface{})
+    err := json.Unmarshal([]byte(s), &data)
+    if err != nil {
+        return err
+    }
+    db.Load(data)
+    return nil
+}
+
 func (m *DB) Get(key string) interface{} {
     return m.data[key]
 }
 
 func (m *DB) Set(key string, value interface{}) {
-    for _, sub := range m.subscribers {
-        sub <- DBOp{"SET", key, value,}
-    }
+    m.dispatch(DBOp{"SET", key, value,})
     m.data[key] = value
 }
 
 func (db *DB) Delete(key string) {
-    for _, sub := range db.subscribers {
-        sub <- DBOp{"DEL", key, nil,}
-    }
+    db.dispatch(DBOp{"DEL", key, nil,})
     delete(db.data, key)
 }
 
 
+func (db *DB) dispatch(op DBOp) {
+    if !db.replicating {
+        return
+    }
+    for _, sub := range db.subscribers {
+        sub <- op
+    }
+}
+
+
 func (m *DB) Subscribe() DBFeed {
-    feed := make(chan DBOp)
+    feed := make(chan DBOp, 1)
     m.subscribers = append(m.subscribers, feed)
     return feed
 }
@@ -127,4 +171,56 @@ func (m *DB) WatchKey(key string) chan *interface{} {
     }()
     <-lock
     return feed
+}
+
+func (feed *DBFeed) Apply(db *DB) {
+    for {
+        op, ok := <-*feed
+        if !ok {
+            return
+        }
+        op.Apply(db)
+    }
+}
+
+
+/*
+ *
+ */
+
+func (db *DB) ReplicateTo(dest io.Writer) error {
+    for op := range db.Subscribe() {
+        var err error
+        opString, err := op.String()
+        if err != nil {
+            return err
+        }
+        opBytes := []byte(opString + "\n")
+        _, err = dest.Write(opBytes)
+        if err != nil {
+            return err
+        }
+    }
+    return nil
+}
+
+func (db *DB) ReplicateFrom(src io.Reader) error {
+    lines := bufio.NewReader(src)
+    for {
+        opBytes, _, err := lines.ReadLine()
+        if err  != nil && err != io.EOF {
+            return err
+        }
+        eof := (err == io.EOF)
+        op, err := ParseOp(string(opBytes))
+        if err != nil {
+            return err
+        }
+        op.Apply(db)
+        if eof {
+            return nil
+        }
+    }
+    db.UnsubscribeAll()
+   return nil
 }
