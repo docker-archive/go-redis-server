@@ -65,7 +65,7 @@ type DB struct {
 
 
 
-func New() (*DB) {
+func NewDB() (*DB) {
     return &DB{
         data:   make(map[string]interface{}),
     }
