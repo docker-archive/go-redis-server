@@ -2,6 +2,7 @@ package livedb
 
 import (
 	"testing"
+	"bytes"
 )
 
 var testData map[string]interface{} = map[string]interface{}{
@@ -124,5 +125,86 @@ func TestLoadJSON2(t *testing.T) {
 	}
 	if !db.FieldEquals("foo", map[string]string{"ga": "bu"}) {
 		t.Fatalf("Wrong DB state after LoadJSON: %#v\n", db.data)
+	}
+}
+
+func TestReplicateStart(t *testing.T) {
+	wire := new(bytes.Buffer)
+	in := NewFrom(testData)
+	in.ReplicateTo(wire)
+	out := New()
+	if _, err := out.ReplicateFrom(wire); err != nil {
+		t.Fatal(err)
+	}
+	if !in.Equals(out) {
+		t.Fatalf("%s != %s", in, out)
+	}
+}
+
+func TestReplicateFromSET(t *testing.T) {
+	var wire bytes.Buffer
+	New().ReplicateTo(&wire)
+	wire.WriteString("*3\r\n$3\r\nSET\r\n$3\r\nfoo\r\n$3\r\nbar\r\n")
+	db := New()
+	if n, err := db.ReplicateFrom(&wire); err != nil {
+		t.Fatal(err)
+	} else if n != 1 {
+		t.Fatalf("Replicate returned %d instead of 1", n)
+	}
+}
+
+func TestReplicateWrongArgSize(t *testing.T) {
+	db := New()
+	input := new(bytes.Buffer)
+	New().ReplicateTo(input)
+	input.WriteString("*3\r\n$3\r\nSET\r\n$4\r\nfoo\r\n$3\r\nbar\r\n")
+	if _, err := db.ReplicateFrom(input); err == nil {
+		t.Fatalf("Wrong command in replication stream should trigger an error")
+	}
+}
+
+func TestNewDump(t *testing.T) {
+	in := NewFrom(testData)
+	dump := NewDump(in.data)
+	if !stringEqual(dump.Strings["foo"], "bar") {
+		t.Fatalf("Dump didn't preserve string")
+	}
+	if !hashEqual(dump.Hashes["h"], map[string]string{"ga":"bu"}) {
+		t.Fatal("Dump didn't preserve hash")
+	}
+}
+
+func TestDumpData(t *testing.T) {
+	in := NewFrom(testData)
+	dump := NewDump(in.data)
+	data := dump.Data()
+	if !stringEqual(data["foo"], "bar") {
+		t.Fatalf("Dump didn't preserve string")
+	}
+	if !hashEqual(data["h"].(map[string]string), map[string]string{"ga":"bu"}) {
+		t.Fatal("Dump didn't preserve hash")
+	}
+}
+
+func TestDump(t *testing.T) {
+	in := NewFrom(testData)
+	dump := NewDump(in.data)
+	out := NewFrom(dump.Data())
+	t.Logf("--> %#v\n", *(dump.Data()["foo"].(*string)))
+	if !out.FieldEquals("foo", "bar") {
+		t.Errorf("Dump didn't preserve string: %s", out.data["foo"])
+	}
+	if !out.FieldEquals("h", map[string]string{"ga":"bu"}) {
+		t.Errorf("Dump didn't preserve hash")
+	}
+}
+
+func TestLoadData(t *testing.T) {
+	out := NewFrom(testData)
+	if !out.FieldEquals("foo", "bar") {
+		t.Errorf("NewFrom didn't preserve string: %s", out.data["foo"])
+	}
+	if !out.FieldEquals("h", map[string]string{"ga":"bu"}) {
+		t.Errorf("NewFrom didn't preserve hash")
 	}
 }

@@ -6,6 +6,7 @@ import (
 	"strings"
 	"fmt"
 	"encoding/json"
+	"io"
 )
 
 type RedisDB struct {
@@ -100,10 +101,41 @@ func checkMethodSignature(method *reflect.Method, nArgs int) error {
 	return nil
 }
 
+func (db *RedisDB) ReplicateFrom(src io.Reader) (int, error) {
+	var nCommands int
+	if n, err := db.LoadGob(src); err != nil {
+		return n, err
+	}
+	reader := NewReader(src)
+	for {
+		if cmd, key, args, err := reader.Read(); err == io.EOF {
+			return nCommands, nil
+		} else if err != nil {
+			return nCommands, err
+		} else {
+			if _, err := db.Apply(cmd, key, args...); err != nil {
+				return nCommands, err
+			}
+		}
+		nCommands += 1
+	}
+	return nCommands, nil
+}
+
+func (db *RedisDB) ReplicateTo(dst io.Writer) (int, error) {
+	// FIXME: accumulate commands
+	dump := NewDump(db.data)
+	if err := dump.Encode(dst); err != nil {
+		return 0, err
+	}
+	// FIXME: send all future commands
+	return 0, nil
+}
+
 func (db *RedisDB) Apply(cmd, key string, args ... string) (interface{}, error) {
 	method, exists := reflect.TypeOf(db).MethodByName(strings.ToUpper(cmd))
 	if !exists {
-		return nil, errors.New("No such command")
+		return nil, errors.New(fmt.Sprintf("%s: no such command", cmd))
 	}
 	if err := checkMethodSignature(&method, len(args) + 1); err != nil {
 		return nil, err
@@ -138,6 +170,7 @@ func (db *RedisDB) Apply(cmd, key string, args ... string) (interface{}, error) 
 func convertString(value interface{}) (string, error) {
 	switch v := value.(type) {
 		case string:	return v, nil
+		case *string:	{ if v != nil { return *v, nil }}
 		case int:	return fmt.Sprintf("%d", v), nil
 		case bool:	{ if v { return "1", nil } else { return "0", nil }}
 	}
@@ -180,6 +213,19 @@ func (db *RedisDB) LoadData(data map[string]interface{}) (int, error) {
 	return stored, nil
 }
 
+func (db *RedisDB) LoadGob(src io.Reader) (int, error) {
+	dump, err := DecodeDump(src)
+	if err != nil {
+		return 0, err
+	}
+	return db.LoadData(dump.Data())
+
+}
+
+func (db *RedisDB) DumpGob(dst io.Writer) error {
+	return NewDump(db.data).Encode(dst)
+}
+
 func (db *RedisDB) LoadJSON(jsonData []byte) (int, error) {
 	data := make(map[string]interface{})
 	if err := json.Unmarshal(jsonData, &data); err != nil {
@@ -187,6 +233,7 @@ func (db *RedisDB) LoadJSON(jsonData []byte) (int, error) {
 	}
 	return db.LoadData(data)
 }
+
 
 func (db *RedisDB) JSON() ([]byte, error) {
 	return json.Marshal(db.data)
@@ -283,3 +330,4 @@ func (db *RedisDB) HGET(key, field string) (*string, error) {
 	}
 	return nil, nil
 }
+
