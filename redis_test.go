@@ -102,6 +102,34 @@ func TestHGETNonExistingKey(t *testing.T) {
 	}
 }
 
+func TestDelExists(t *testing.T) {
+	db := New()
+	if err := db.SET("foo", "bar"); err != nil {
+		t.Fatal(err)
+	}
+	if n := db.DEL("foo"); n != 1 {
+		t.Fatalf("Should have deleted %d keys, not %d", 1, n)
+	}
+	if val, _ := db.GET("foo"); val != nil {
+		t.Fatal("Unsuccessful DEL")
+	}
+}
+
+func TestApplyDel(t *testing.T) {
+	db := New()
+	if err := db.SET("foo", "bar"); err != nil {
+		t.Fatal(err)
+	}
+	if n, err := db.Apply("DEL", "foo"); err != nil {
+		t.Fatal(err)
+	} else if n != 1 {
+		t.Fatalf("Should have deleted %d keys, not %d", 1, n)
+	}
+	if val, _ := db.GET("foo"); val != nil {
+		t.Fatal("Unsuccessful DEL")
+	}
+}
+
 func TestLoadJSON1(t *testing.T) {
 	db := New()
 	if n, err := db.LoadJSON([]byte("{\"foo\": \"bar\"}")); err != nil {
