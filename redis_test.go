@@ -3,6 +3,8 @@ package livedb
 import (
 	"testing"
 	"bytes"
+	"io"
+	"fmt"
 )
 
 var testData map[string]interface{} = map[string]interface{}{
@@ -128,37 +130,93 @@ func TestLoadJSON2(t *testing.T) {
 	}
 }
 
-func TestReplicateStart(t *testing.T) {
-	wire := new(bytes.Buffer)
-	in := NewFrom(testData)
-	in.ReplicateTo(wire)
-	out := New()
-	if _, err := out.ReplicateFrom(wire); err != nil {
-		t.Fatal(err)
-	}
-	if !in.Equals(out) {
-		t.Fatalf("%s != %s", in, out)
-	}
+func TestReplicateOneSET(t *testing.T) {
+	ReplicationTest(t,
+		Command{"SET", "hello", "world"},
+	)
 }
 
-func TestReplicateFromSET(t *testing.T) {
-	var wire bytes.Buffer
-	New().ReplicateTo(&wire)
-	wire.WriteString("*3\r\n$3\r\nSET\r\n$3\r\nfoo\r\n$3\r\nbar\r\n")
-	db := New()
-	if n, err := db.ReplicateFrom(&wire); err != nil {
+func TestReplicateTwoSET(t *testing.T) {
+	ReplicationTest(t,
+		Command{"SET", "foo", "bar"},
+		Command{"SET", "hello", "world"},
+	)
+}
+
+func TestBigReplication(t *testing.T) {
+	ReplicationTest(t,
+		Command{"SET", "foo", "bar"},
+		Command{"SET", "hello", "world"},
+		Command{"HSET", "animal_colors", "macaque", "brown"},
+		Command{"HSET", "animal_colors", "lion", "yello"},
+		Command{"HSET", "animal_colors", "flamingo", "pink"},
+		Command{"HSET", "animal_colors", "gordon", "fancy green"},
+		Command{"HSET", "animal_colors", "fox", "brown"},
+		Command{"HSET", "animal_colors", "elephant", "gray"},
+		Command{"SET", "foo", "baz"},
+	)
+}
+
+func ReplicationTest(t *testing.T, commands ...Command) {
+	if err := func() error {
+		master := New()
+		slave := New()
+		r, w := io.Pipe()
+		syncFeed := master.Subscribe()
+		errs := make(chan error)
+		go func() {
+			if n, err := master.ReplicateToN(w, len(commands)); err != nil {
+				errs <-err
+			} else if n != len(commands) {
+				errs <-fmt.Errorf("ReplicateToN() should return %d, not %d", len(commands), n)
+			} else {
+				errs <-nil
+			}
+			w.Close()
+		}()
+		if cmd := <-syncFeed; cmd[0] != "_new_slave" {
+			return fmt.Errorf("Expected command '%s', not '%s'\n", "_new_slave", cmd)
+		}
+		master.Unsubscribe(syncFeed)
+		go func() {
+			if n, err := slave.ReplicateFromN(r, len(commands)); err != nil {
+				errs <-err
+			} else if n != len(commands) {
+				errs <-fmt.Errorf("ReplicateFromN() should return %d, not %d", len(commands), n)
+			} else {
+				errs <-nil
+			}
+		}()
+		for _, command := range commands {
+			if _, err := master.Apply(command[0], command[1:]...); err != nil {
+				return err
+			}
+		}
+		if err := <-errs; err != nil {
+			return err
+		}
+		if err := <-errs; err != nil {
+			return err
+		}
+		if !master.Equals(slave) {
+			return fmt.Errorf("Slave and master differ after replication:\n\t   %v\t\t!= %v\n", master, slave)
+		}
+		return nil
+	}(); err != nil {
 		t.Fatal(err)
-	} else if n != 1 {
-		t.Fatalf("Replicate returned %d instead of 1", n)
 	}
 }
 
 func TestReplicateWrongArgSize(t *testing.T) {
 	db := New()
 	input := new(bytes.Buffer)
-	New().ReplicateTo(input)
+	// Dump initial state to wire
+	if err := NewDump(New().data).Encode(input); err != nil {
+		t.Fatal(err)
+	}
+	// Send a manually encoded replication command (with a voluntary error)
 	input.WriteString("*3\r\n$3\r\nSET\r\n$4\r\nfoo\r\n$3\r\nbar\r\n")
-	if _, err := db.ReplicateFrom(input); err == nil {
+	if _, err := db.ReplicateFromN(input, 1); err == nil {
 		t.Fatalf("Wrong command in replication stream should trigger an error")
 	}
 }

@@ -9,13 +9,22 @@ import (
 	"io"
 )
 
+type Receiver interface{
+	Apply(string, ...string) (interface{}, error)
+}
+
+type Command []string
+
 type RedisDB struct {
 	data map[string]interface{}
+	slaves map[chan Command]bool	// Keep channels in a map so we can easily deregister them
 }
 
 func New() *RedisDB {
-	return &RedisDB{data: make(map[string]interface{})}
+	db := &RedisDB{data: make(map[string]interface{}), slaves: make(map[chan Command]bool)}
+	return db
 }
+
 
 func NewFrom(data map[string]interface{}) *RedisDB {
 	db := New()
@@ -102,18 +111,25 @@ func checkMethodSignature(method *reflect.Method, nArgs int) error {
 }
 
 func (db *RedisDB) ReplicateFrom(src io.Reader) (int, error) {
+	return db.ReplicateFromN(src, 0)
+}
+
+// Replicate the first LIMIT commands, then return.
+// limit==0: no limit, replicate all commands
+// limit>0: replicate at most `limit` commands
+func (db *RedisDB) ReplicateFromN(src io.Reader, limit int) (int, error) {
 	var nCommands int
 	if n, err := db.LoadGob(src); err != nil {
 		return n, err
 	}
 	reader := NewReader(src)
-	for {
-		if cmd, key, args, err := reader.Read(); err == io.EOF {
+	for i:=0; limit==0 || i<limit; i+=1 {
+		if cmd, err := reader.Read(); err == io.EOF {
 			return nCommands, nil
 		} else if err != nil {
 			return nCommands, err
 		} else {
-			if _, err := db.Apply(cmd, key, args...); err != nil {
+			if _, err := db.Apply(cmd[0], cmd[1:]...); err != nil {
 				return nCommands, err
 			}
 		}
@@ -122,25 +138,45 @@ func (db *RedisDB) ReplicateFrom(src io.Reader) (int, error) {
 	return nCommands, nil
 }
 
+
 func (db *RedisDB) ReplicateTo(dst io.Writer) (int, error) {
-	// FIXME: accumulate commands
+	return db.ReplicateToN(dst, 0)
+}
+
+func (db *RedisDB) ReplicateToN(dst io.Writer, limit int) (int, error) {
+	slave := db.Subscribe()
+	// FIXME: accumulate commands instead of blocking all queries
 	dump := NewDump(db.data)
 	if err := dump.Encode(dst); err != nil {
 		return 0, err
 	}
-	// FIXME: send all future commands
-	return 0, nil
+	writer := &ReplicationWriter{dst}
+	var nWritten int
+	for cmd := range slave {
+		if cmd[0] == "" || cmd[0][0] == '_' {
+			// Drop debug/internal commands
+			continue
+		}
+		if _, err := writer.Apply(cmd...); err != nil {
+			return 0, err
+		}
+		nWritten += 1
+		if limit>0 && nWritten >= limit {
+			break
+		}
+	}
+	return nWritten, nil
 }
 
-func (db *RedisDB) Apply(cmd, key string, args ... string) (interface{}, error) {
+func (db *RedisDB) Apply(cmd string, args ... string) (interface{}, error) {
 	method, exists := reflect.TypeOf(db).MethodByName(strings.ToUpper(cmd))
 	if !exists {
 		return nil, errors.New(fmt.Sprintf("%s: no such command", cmd))
 	}
-	if err := checkMethodSignature(&method, len(args) + 1); err != nil {
+	if err := checkMethodSignature(&method, len(args)); err != nil {
 		return nil, err
 	}
-	input := []reflect.Value{reflect.ValueOf(db), reflect.ValueOf(key)}
+	input := []reflect.Value{reflect.ValueOf(db)}
 	var result []reflect.Value
 	mType := method.Func.Type()
 	if mType.IsVariadic() {
@@ -258,6 +294,7 @@ func (db *RedisDB) EXISTS(key string) bool {
 
 func (db *RedisDB) SET(key, value string) error {
 	db.data[key] = &value
+	db.replicateCommand("SET", key, value)
 	return nil
 }
 
@@ -273,6 +310,7 @@ func (db *RedisDB) DEL(keys ...string) int {
 			nDeleted += 1
 		}
 	}
+	db.replicateCommand(append([]string{"DEL"}, keys...)...)
 	return nDeleted
 }
 
@@ -314,6 +352,7 @@ func (db *RedisDB) HSET(key, field, value string) (int, error) {
 		result = 1
 	}
 	hash[field] = value
+	db.replicateCommand("HSET", key, field, value)
 	return result, nil
 }
 
@@ -331,3 +370,20 @@ func (db *RedisDB) HGET(key, field string) (*string, error) {
 	return nil, nil
 }
 
+func (db *RedisDB) replicateCommand(cmd ... string) {
+	for slave := range db.slaves {
+		slave <-cmd
+	}
+}
+
+func (db *RedisDB) Subscribe() chan Command {
+	slave := make(chan Command, 4096)
+	// Debug
+	db.replicateCommand("_new_slave")
+	db.slaves[slave] = true
+	return slave
+}
+
+func (db *RedisDB) Unsubscribe(slave chan Command) {
+	delete(db.slaves, slave)
+}
