@@ -29,6 +29,9 @@ func (h *DummyHandler) SET(key, value string) error {
 	return nil
 }
 
+// Serve starts a new redis session, using `conn` as a transport.
+// It reads commands using the redis protocol, passes them to `handler`,
+// and returns the result.
 func Serve(conn io.ReadWriteCloser, handler Handler) (err error) {
 	defer func() {
 		if err != nil {
@@ -116,6 +119,7 @@ func Serve(conn io.ReadWriteCloser, handler Handler) (err error) {
 	return nil
 }
 
+// ApplyString calls `Apply` and returns the result as a string pointer.
 func ApplyString(handler Handler, cmd string, args ... string) (*string, error) {
 	IResult, err := Apply(handler, cmd, args...)
 	if err != nil {
@@ -201,6 +205,7 @@ func checkMethodSignature(method *reflect.Method, nArgs int) error {
 
 // Debug function, if the debug flag is set, then display. Do nothing otherwise
 // If Docker is in damon mode, also send the debug info on the socket
+// Convenience debug function, courtesy of http://github.com/dotcloud/docker
 func Debugf(format string, a ...interface{}) {
 	if os.Getenv("DEBUG") != "" {
 
