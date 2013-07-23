@@ -9,7 +9,6 @@ import (
 	"io"
 	"io/ioutil"
 	"runtime"
-	"net"
 	"strings"
 )
 
@@ -30,7 +29,7 @@ func (h *DummyHandler) SET(key, value string) error {
 	return nil
 }
 
-func Serve(conn net.Conn, handler Handler) (err error) {
+func Serve(conn io.ReadWriteCloser, handler Handler) (err error) {
 	defer func() {
 		if err != nil {
 			fmt.Fprintf(conn, "-%s\n", err)
