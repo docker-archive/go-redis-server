@@ -4,7 +4,39 @@ import (
 	"bufio"
 	"fmt"
 	"io"
+	"net"
 )
+
+type Server struct {
+	Addr    string   // TCP address to listen on, ":6389" if empty
+	Handler *Handler // handler to invoke
+}
+
+func (srv *Server) ListenAndServe() error {
+	addr := srv.Addr
+	if addr == "" {
+		addr = ":6389"
+	}
+	l, e := net.Listen("tcp", addr)
+	if e != nil {
+		return e
+	}
+	return srv.Serve(l)
+}
+
+// Serve accepts incoming connections on the Listener l, creating a
+// new service goroutine for each.  The service goroutines read requests and
+// then call srv.Handler to reply to them.
+func (srv *Server) Serve(l net.Listener) error {
+	defer l.Close()
+	for {
+		rw, err := l.Accept()
+		if err != nil {
+			return err
+		}
+		go Serve(rw, srv.Handler)
+	}
+}
 
 // Serve starts a new redis session, using `conn` as a transport.
 // It reads commands using the redis protocol, passes them to `handler`,
