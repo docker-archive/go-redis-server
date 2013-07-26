@@ -59,6 +59,11 @@ func (h *TestHandler) HGETALL(hash string) (*map[string][]byte, error) {
 	return &hs.values, nil
 }
 
+func (h *TestHandler) BRPOP(key string, params ...[]byte) ([][]byte, error) {
+	params = append(params, []byte(key))
+	return params, nil
+}
+
 func TestAutoHandler(t *testing.T) {
 	h, err := NewAutoHandler(NewHandler())
 	if err != nil {
@@ -145,6 +150,29 @@ func TestAutoHandler(t *testing.T) {
 			expected: []string{
 				"*4\r\n$5\r\nprop1\r\n$6\r\nvalue1\r\n$5\r\nprop2\r\n$6\r\nvalue2\r\n",
 				"*4\r\n$5\r\nprop2\r\n$6\r\nvalue2\r\n$5\r\nprop1\r\n$6\r\nvalue1\r\n",
+			},
+		},
+		{
+			request: &Request{
+				name: "BRPOP",
+				args: [][]byte{
+					[]byte("key"),
+				},
+			},
+			expected: []string{
+				"*1\r\n$3\r\nkey\r\n",
+			},
+		},
+		{
+			request: &Request{
+				name: "BRPOP",
+				args: [][]byte{
+					[]byte("key1"),
+					[]byte("key2"),
+				},
+			},
+			expected: []string{
+				"*2\r\n$4\r\nkey2\r\n$4\r\nkey1\r\n",
 			},
 		},
 	}

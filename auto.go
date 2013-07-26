@@ -12,6 +12,7 @@ type AutoHandler interface {
 	HMSET(key string, values *map[string][]byte) error
 	HGETALL(key string) (*map[string][]byte, error)
 	HGET(hash string, key string) ([]byte, error)
+	BRPOP(key string, params ...[]byte) ([][]byte, error)
 }
 
 func NewAutoHandler(autoHandler AutoHandler) (*Handler, error) {
@@ -32,10 +33,6 @@ func NewAutoHandler(autoHandler AutoHandler) (*Handler, error) {
 func createHandlerFn(autoHandler AutoHandler, method *reflect.Method) (HandlerFn, error) {
 	errorType := reflect.TypeOf(createHandlerFn).Out(1)
 	mtype := method.Func.Type()
-	// Check input
-	if mtype.IsVariadic() {
-		return nil, errors.New("Variadic arguments are not supported")
-	}
 	checkers, err := createCheckers(method)
 	if err != nil {
 		return nil, err
@@ -66,7 +63,14 @@ func handlerFn(autoHandler AutoHandler, method *reflect.Method, checkers []Check
 			}
 			input = append(input, value)
 		}
-		result := method.Func.Call(input)
+
+		var result []reflect.Value
+		if method.Func.Type().IsVariadic() {
+			result = method.Func.CallSlice(input)
+		} else {
+			result = method.Func.Call(input)
+		}
+
 		var ret interface{}
 		if ierr := result[len(result)-1].Interface(); ierr != nil {
 			// Last return value is an error, wrap it to redis error
@@ -109,6 +113,8 @@ func createCheckers(method *reflect.Method) ([]CheckerFn, error) {
 			checkers = append(checkers, stringChecker(i-1))
 		case reflect.TypeOf([]byte{}):
 			checkers = append(checkers, byteChecker(i-1))
+		case reflect.TypeOf([][]byte{}):
+			checkers = append(checkers, byteSliceChecker(i-1))
 		case reflect.TypeOf(&map[string][]byte{}):
 			if i != mtype.NumIn()-1 {
 				return nil, errors.New("Map should be the last argument")
@@ -143,6 +149,16 @@ func byteChecker(index int) CheckerFn {
 			return reflect.ValueOf([]byte{}), err
 		}
 		return reflect.ValueOf(request.args[index]), nil
+	}
+}
+
+func byteSliceChecker(index int) CheckerFn {
+	return func(request *Request) (reflect.Value, ReplyWriter) {
+		if !request.HasArgument(index) {
+			return reflect.ValueOf([][]byte{}), nil
+		} else {
+			return reflect.ValueOf(request.args[index:]), nil
+		}
 	}
 }
 

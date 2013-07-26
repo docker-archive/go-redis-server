@@ -9,8 +9,12 @@ type Request struct {
 	args [][]byte
 }
 
+func (request *Request) HasArgument(index int) bool {
+	return len(request.args) >= index+1
+}
+
 func (request *Request) ExpectArgument(index int) ReplyWriter {
-	if len(request.args) < index+1 {
+	if !request.HasArgument(index) {
 		return NewError("Not enough arguments")
 	}
 	return nil
