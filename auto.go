@@ -13,6 +13,7 @@ type AutoHandler interface {
 	HGETALL(key string) (*map[string][]byte, error)
 	HGET(hash string, key string) ([]byte, error)
 	BRPOP(key string, params ...[]byte) ([][]byte, error)
+	SUBSCRIBE(channel string, channels ...[]byte) (*ChannelWriter, error)
 }
 
 func NewAutoHandler(autoHandler AutoHandler) (*Handler, error) {
@@ -98,7 +99,8 @@ func createReply(val interface{}) (ReplyWriter, error) {
 		return MultiBulkFromMap(val), nil
 	case int:
 		return &IntegerReply{number: val}, nil
-
+	case *ChannelWriter:
+		return val, nil
 	default:
 		return nil, errors.New(fmt.Sprintf("Unsupported type: %s", val))
 	}

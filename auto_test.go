@@ -64,6 +64,27 @@ func (h *TestHandler) BRPOP(key string, params ...[]byte) ([][]byte, error) {
 	return params, nil
 }
 
+func (h *TestHandler) SUBSCRIBE(channel string, channels ...[]byte) (*ChannelWriter, error) {
+	output := make(chan [][]byte)
+	writer := &ChannelWriter{
+		FirstReply: [][]byte{
+			[]byte("subscribe"),
+			[]byte(channel),
+			[]byte("1"),
+		},
+		Channel: output,
+	}
+	go func() {
+		output <- [][]byte{
+			[]byte("message"),
+			[]byte(channel),
+			[]byte("yo"),
+		}
+		close(output)
+	}()
+	return writer, nil
+}
+
 func TestAutoHandler(t *testing.T) {
 	h, err := NewAutoHandler(NewHandler())
 	if err != nil {
@@ -173,6 +194,17 @@ func TestAutoHandler(t *testing.T) {
 			},
 			expected: []string{
 				"*2\r\n$4\r\nkey2\r\n$4\r\nkey1\r\n",
+			},
+		},
+		{
+			request: &Request{
+				name: "SUBSCRIBE",
+				args: [][]byte{
+					[]byte("foo"),
+				},
+			},
+			expected: []string{
+				"*3\r\n$9\r\nsubscribe\r\n$3\r\nfoo\r\n$1\r\n1\r\n*3\r\n$7\r\nmessage\r\n$3\r\nfoo\r\n$2\r\nyo\r\n",
 			},
 		},
 	}

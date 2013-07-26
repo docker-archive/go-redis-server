@@ -79,15 +79,15 @@ func MultiBulkFromMap(m *map[string][]byte) *MultiBulkReply {
 	return &MultiBulkReply{values: values}
 }
 
-func (r *MultiBulkReply) WriteTo(w io.Writer) (int, error) {
-	if r.values == nil {
+func writeMultiBytes(values [][]byte, w io.Writer) (int, error) {
+	if values == nil {
 		return 0, errors.New("Nil in multi bulk replies are not ok")
 	}
-	wrote, err := w.Write([]byte("*" + strconv.Itoa(len(r.values)) + "\r\n"))
+	wrote, err := w.Write([]byte("*" + strconv.Itoa(len(values)) + "\r\n"))
 	if err != nil {
 		return wrote, err
 	}
-	for _, v := range r.values {
+	for _, v := range values {
 		wroteBytes, err := writeBytes(v, w)
 		if err != nil {
 			return wrote + wroteBytes, err
@@ -95,6 +95,10 @@ func (r *MultiBulkReply) WriteTo(w io.Writer) (int, error) {
 		wrote += wroteBytes
 	}
 	return wrote, err
+}
+
+func (r *MultiBulkReply) WriteTo(w io.Writer) (int, error) {
+	return writeMultiBytes(r.values, w)
 }
 
 func NewError(message string) *ErrorReply {
@@ -112,4 +116,34 @@ func ReplyToString(r ReplyWriter) (string, error) {
 		return "ERROR!", err
 	}
 	return b.String(), nil
+}
+
+type ChannelWriter struct {
+	FirstReply [][]byte
+	Channel    chan [][]byte
+}
+
+func (c *ChannelWriter) WriteTo(w io.Writer) (int, error) {
+	totalBytes, err := writeMultiBytes(c.FirstReply, w)
+	if err != nil {
+		return totalBytes, err
+	}
+
+	for {
+		select {
+		case reply := <-c.Channel:
+			if reply == nil {
+				return totalBytes, nil
+			} else {
+				wroteBytes, err := writeMultiBytes(reply, w)
+				// FIXME: obvious overflow here,
+				// Just ignore? Who cares?
+				totalBytes += wroteBytes
+				if err != nil {
+					return totalBytes, err
+				}
+			}
+		}
+	}
+	return totalBytes, nil
 }
