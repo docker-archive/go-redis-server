@@ -18,6 +18,7 @@ func TestWriteStatus(t *testing.T) {
 		{&MultiBulkReply{[][]byte{[]byte{'h', 'e', 'l', 'l', 'o'}}}, "*1\r\n$5\r\nhello\r\n"},
 		{&MultiBulkReply{[][]byte{[]byte{'h', 'e', 'l', 'l', 'o'}, []byte{'h', 'i'}}}, "*2\r\n$5\r\nhello\r\n$2\r\nhi\r\n"},
 		{&MultiBulkReply{[][]byte{nil, []byte{'h', 'e', 'l', 'l', 'o'}, nil, []byte{'h', 'i'}}}, "*4\r\n$-1\r\n$5\r\nhello\r\n$-1\r\n$2\r\nhi\r\n"},
+		{MultiBulkFromMap(&map[string][]byte{"hello": []byte("there"), "how": []byte("are you")}), "*4\r\n$5\r\nhello\r\n$5\r\nthere\r\n$3\r\nhow\r\n$7\r\nare you\r\n"},
 	}
 	for _, p := range replies {
 		var b bytes.Buffer

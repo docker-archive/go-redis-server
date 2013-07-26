@@ -10,6 +10,7 @@ type AutoHandler interface {
 	GET(key string) ([]byte, error)
 	SET(key string, value []byte) error
 	HMSET(key string, values *map[string][]byte) error
+	HGETALL(key string) (*map[string][]byte, error)
 	HGET(hash string, key string) ([]byte, error)
 }
 
@@ -89,8 +90,11 @@ func createReply(val interface{}) (ReplyWriter, error) {
 		return &BulkReply{value: []byte(val)}, nil
 	case []byte:
 		return &BulkReply{value: val}, nil
+	case *map[string][]byte:
+		return MultiBulkFromMap(val), nil
 	case int:
 		return &IntegerReply{number: val}, nil
+
 	default:
 		return nil, errors.New(fmt.Sprintf("Unsupported type: %s", val))
 	}

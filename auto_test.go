@@ -51,6 +51,14 @@ func (h *TestHandler) HGET(hash string, key string) ([]byte, error) {
 	return val, nil
 }
 
+func (h *TestHandler) HGETALL(hash string) (*map[string][]byte, error) {
+	hs, exists := h.hashValues[hash]
+	if !exists {
+		return nil, nil
+	}
+	return &hs.values, nil
+}
+
 func TestAutoHandler(t *testing.T) {
 	h, err := NewAutoHandler(NewHandler())
 	if err != nil {
@@ -58,14 +66,14 @@ func TestAutoHandler(t *testing.T) {
 	}
 	expected := []struct {
 		request  *Request
-		expected string
+		expected []string
 	}{
 		{
 			request: &Request{
 				name: "GET",
 				args: [][]byte{[]byte("key")},
 			},
-			expected: "$-1\r\n",
+			expected: []string{"$-1\r\n"},
 		},
 		{
 			request: &Request{
@@ -75,14 +83,14 @@ func TestAutoHandler(t *testing.T) {
 					[]byte("value"),
 				},
 			},
-			expected: "+OK\r\n",
+			expected: []string{"+OK\r\n"},
 		},
 		{
 			request: &Request{
 				name: "GET",
 				args: [][]byte{[]byte("key")},
 			},
-			expected: "$5\r\nvalue\r\n",
+			expected: []string{"$5\r\nvalue\r\n"},
 		},
 		{
 			request: &Request{
@@ -92,7 +100,7 @@ func TestAutoHandler(t *testing.T) {
 					[]byte("prop1"),
 				},
 			},
-			expected: "$-1\r\n",
+			expected: []string{"$-1\r\n"},
 		},
 		{
 			request: &Request{
@@ -105,7 +113,7 @@ func TestAutoHandler(t *testing.T) {
 					[]byte("value2"),
 				},
 			},
-			expected: "+OK\r\n",
+			expected: []string{"+OK\r\n"},
 		},
 		{
 			request: &Request{
@@ -115,7 +123,7 @@ func TestAutoHandler(t *testing.T) {
 					[]byte("prop1"),
 				},
 			},
-			expected: "$6\r\nvalue1\r\n",
+			expected: []string{"$6\r\nvalue1\r\n"},
 		},
 		{
 			request: &Request{
@@ -125,7 +133,19 @@ func TestAutoHandler(t *testing.T) {
 					[]byte("prop2"),
 				},
 			},
-			expected: "$6\r\nvalue2\r\n",
+			expected: []string{"$6\r\nvalue2\r\n"},
+		},
+		{
+			request: &Request{
+				name: "HGETALL",
+				args: [][]byte{
+					[]byte("key"),
+				},
+			},
+			expected: []string{
+				"*4\r\n$5\r\nprop1\r\n$6\r\nvalue1\r\n$5\r\nprop2\r\n$6\r\nvalue2\r\n",
+				"*4\r\n$5\r\nprop2\r\n$6\r\nvalue2\r\n$5\r\nprop1\r\n$6\r\nvalue1\r\n",
+			},
 		},
 	}
 	for _, v := range expected {
@@ -133,8 +153,15 @@ func TestAutoHandler(t *testing.T) {
 		if err != nil {
 			t.Fatalf("Unexpected error: %s", err)
 		}
-		if reply != v.expected {
-			t.Fatalf("Eexpected %q, got: %q", v.expected, reply)
+		match := false
+		for _, expected := range v.expected {
+			if reply == expected {
+				match = true
+				break
+			}
+		}
+		if match == false {
+			t.Fatalf("Eexpected one of %q, got: %q", v.expected, reply)
 		}
 	}
 }

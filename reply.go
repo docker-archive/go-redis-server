@@ -68,6 +68,17 @@ type MultiBulkReply struct {
 	values [][]byte
 }
 
+func MultiBulkFromMap(m *map[string][]byte) *MultiBulkReply {
+	values := make([][]byte, len(*m)*2)
+	i := 0
+	for key, val := range *m {
+		values[i] = []byte(key)
+		values[i+1] = val
+		i += 2
+	}
+	return &MultiBulkReply{values: values}
+}
+
 func (r *MultiBulkReply) WriteTo(w io.Writer) (int, error) {
 	if r.values == nil {
 		return 0, errors.New("Nil in multi bulk replies are not ok")
