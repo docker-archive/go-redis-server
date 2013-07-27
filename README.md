@@ -1,3 +1,5 @@
+[![Build Status](https://travis-ci.org/mailgun/go-redis-server.png)](https://travis-ci.org/mailgun/go-redis-server)
+
 Redis server protocol library
 =============================
 
