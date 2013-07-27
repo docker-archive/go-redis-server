@@ -13,7 +13,7 @@ Sample code
 
 ```go
 type MyHandler struct {
-  namespace *Namespace
+  values     map[string][]byte
 }
 
 func (h *MyHandler) GET(key string) ([]byte, error) {
