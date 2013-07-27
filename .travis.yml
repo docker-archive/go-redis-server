@@ -1,0 +1,7 @@
+language: go
+go: 1.1
+install:
+  - export PATH=$PATH:$HOME/gopath/bin
+  - go get -v github.com/mailgun/go-redis-server
+script:
+  - go test github.com/mailgun/go-redis-server
