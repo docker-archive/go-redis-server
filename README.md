@@ -13,11 +13,11 @@ Sample code
 
 ```go
 type MyHandler struct {
-  values     map[string][]byte
+	values     map[string][]byte
 }
 
 func (h *MyHandler) GET(key string) ([]byte, error) {
-  v, _ := h.values[key]
+	v, _ := h.values[key]
 	return v, nil
 }
 
