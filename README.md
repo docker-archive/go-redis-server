@@ -27,7 +27,7 @@ func (h *MyHandler) SET(key string, value []byte) error {
 }
 
 func main() {
-  handler, _ := redis.NewAutoHandler(&TestHandler{})
+  handler, _ := redis.NewAutoHandler(&MyHandler{})
 	server := &redis.Server{Handler: handler, Addr: ":6389"}
 	server.ListenAndServe()
 }
