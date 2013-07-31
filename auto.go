@@ -12,6 +12,7 @@ type AutoHandler interface {
 	HMSET(key string, values *map[string][]byte) error
 	HGETALL(key string) (*map[string][]byte, error)
 	HGET(hash string, key string) ([]byte, error)
+	HSET(hash string, key string, value []byte) error
 	BRPOP(key string, params ...[]byte) ([][]byte, error)
 	SUBSCRIBE(channel string, channels ...[]byte) (*ChannelWriter, error)
 }

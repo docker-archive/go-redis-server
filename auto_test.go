@@ -51,6 +51,15 @@ func (h *TestHandler) HGET(hash string, key string) ([]byte, error) {
 	return val, nil
 }
 
+func (h *TestHandler) HSET(hash string, key string, value []byte) error {
+	_, exists := h.hashValues[hash]
+	if !exists {
+		h.hashValues[hash] = Hash{values: make(map[string][]byte)}
+	}
+	h.hashValues[hash].values[key] = value
+	return nil
+}
+
 func (h *TestHandler) HGETALL(hash string) (*map[string][]byte, error) {
 	hs, exists := h.hashValues[hash]
 	if !exists {
@@ -172,6 +181,29 @@ func TestAutoHandler(t *testing.T) {
 				"*4\r\n$5\r\nprop1\r\n$6\r\nvalue1\r\n$5\r\nprop2\r\n$6\r\nvalue2\r\n",
 				"*4\r\n$5\r\nprop2\r\n$6\r\nvalue2\r\n$5\r\nprop1\r\n$6\r\nvalue1\r\n",
 			},
+		},
+		{
+			request: &Request{
+				name: "HSET",
+				args: [][]byte{
+					[]byte("key"),
+					[]byte("prop1"),
+					[]byte("newvalue"),
+				},
+			},
+			expected: []string{
+				"+OK\r\n",
+			},
+		},
+		{
+			request: &Request{
+				name: "HGET",
+				args: [][]byte{
+					[]byte("key"),
+					[]byte("prop1"),
+				},
+			},
+			expected: []string{"$8\r\nnewvalue\r\n"},
 		},
 		{
 			request: &Request{
