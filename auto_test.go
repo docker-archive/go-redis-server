@@ -94,6 +94,29 @@ func (h *TestHandler) SUBSCRIBE(channel string, channels ...[]byte) (*ChannelWri
 	return writer, nil
 }
 
+func (h *TestHandler) DEL(key string, keys ...[]byte) (int, error) {
+	var deleted int
+	deleteKey := func(k string) {
+		_, exists := h.values[k]
+		if exists {
+			deleted += 1
+			delete(h.values, k)
+		}
+		_, exists = h.hashValues[k]
+		if exists {
+			deleted += 1
+			delete(h.hashValues, k)
+		}
+	}
+
+	deleteKey(key)
+	for _, k := range keys {
+		deleteKey(string(k))
+	}
+
+	return deleted, nil
+}
+
 func TestAutoHandler(t *testing.T) {
 	h, err := NewAutoHandler(NewHandler())
 	if err != nil {
@@ -131,7 +154,7 @@ func TestAutoHandler(t *testing.T) {
 			request: &Request{
 				name: "HGET",
 				args: [][]byte{
-					[]byte("key"),
+					[]byte("hkey"),
 					[]byte("prop1"),
 				},
 			},
@@ -141,7 +164,7 @@ func TestAutoHandler(t *testing.T) {
 			request: &Request{
 				name: "HMSET",
 				args: [][]byte{
-					[]byte("key"),
+					[]byte("hkey"),
 					[]byte("prop1"),
 					[]byte("value1"),
 					[]byte("prop2"),
@@ -154,7 +177,7 @@ func TestAutoHandler(t *testing.T) {
 			request: &Request{
 				name: "HGET",
 				args: [][]byte{
-					[]byte("key"),
+					[]byte("hkey"),
 					[]byte("prop1"),
 				},
 			},
@@ -164,7 +187,7 @@ func TestAutoHandler(t *testing.T) {
 			request: &Request{
 				name: "HGET",
 				args: [][]byte{
-					[]byte("key"),
+					[]byte("hkey"),
 					[]byte("prop2"),
 				},
 			},
@@ -174,7 +197,7 @@ func TestAutoHandler(t *testing.T) {
 			request: &Request{
 				name: "HGETALL",
 				args: [][]byte{
-					[]byte("key"),
+					[]byte("hkey"),
 				},
 			},
 			expected: []string{
@@ -186,7 +209,7 @@ func TestAutoHandler(t *testing.T) {
 			request: &Request{
 				name: "HSET",
 				args: [][]byte{
-					[]byte("key"),
+					[]byte("hkey"),
 					[]byte("prop1"),
 					[]byte("newvalue"),
 				},
@@ -199,7 +222,7 @@ func TestAutoHandler(t *testing.T) {
 			request: &Request{
 				name: "HGET",
 				args: [][]byte{
-					[]byte("key"),
+					[]byte("hkey"),
 					[]byte("prop1"),
 				},
 			},
@@ -207,13 +230,23 @@ func TestAutoHandler(t *testing.T) {
 		},
 		{
 			request: &Request{
-				name: "BRPOP",
+				name: "DEL",
 				args: [][]byte{
 					[]byte("key"),
+					[]byte("hkey"),
+				},
+			},
+			expected: []string{":2\r\n"},
+		},
+		{
+			request: &Request{
+				name: "BRPOP",
+				args: [][]byte{
+					[]byte("bkey"),
 				},
 			},
 			expected: []string{
-				"*1\r\n$3\r\nkey\r\n",
+				"*1\r\n$4\r\nbkey\r\n",
 			},
 		},
 		{

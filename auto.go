@@ -15,6 +15,7 @@ type AutoHandler interface {
 	HSET(hash string, key string, value []byte) error
 	BRPOP(key string, params ...[]byte) ([][]byte, error)
 	SUBSCRIBE(channel string, channels ...[]byte) (*ChannelWriter, error)
+	DEL(key string, keys ...[]byte) (int, error)
 }
 
 func NewAutoHandler(autoHandler AutoHandler) (*Handler, error) {
