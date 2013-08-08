@@ -6,6 +6,8 @@ import (
 	"reflect"
 )
 
+type CheckerFn func(request *Request) (reflect.Value, ReplyWriter)
+
 type AutoHandler interface {
 	GET(key string) ([]byte, error)
 	SET(key string, value []byte) error
@@ -49,8 +51,7 @@ func createHandlerFn(autoHandler AutoHandler, method *reflect.Method) (HandlerFn
 		return nil, errors.New("Too many return values")
 	}
 	if t := mtype.Out(mtype.NumOut() - 1); t != errorType {
-		return nil, errors.New(
-			fmt.Sprintf("Last return value must be an error (not %s)", t))
+		return nil, fmt.Errorf("Last return value must be an error (not %s)", t)
 	}
 
 	return handlerFn(autoHandler, method, checkers)
@@ -104,7 +105,7 @@ func createReply(val interface{}) (ReplyWriter, error) {
 	case *ChannelWriter:
 		return val, nil
 	default:
-		return nil, errors.New(fmt.Sprintf("Unsupported type: %s", val))
+		return nil, fmt.Errorf("Unsupported type: %s", val)
 	}
 }
 
@@ -127,14 +128,11 @@ func createCheckers(method *reflect.Method) ([]CheckerFn, error) {
 		case reflect.TypeOf(1):
 			checkers = append(checkers, intChecker(i-1))
 		default:
-			return nil, errors.New(
-				fmt.Sprintf("Argument %d: wrong type %s", i, mtype.In(i)))
+			return nil, fmt.Errorf("Argument %d: wrong type %s", i, mtype.In(i))
 		}
 	}
 	return checkers, nil
 }
-
-type CheckerFn func(request *Request) (reflect.Value, ReplyWriter)
 
 func stringChecker(index int) CheckerFn {
 	return func(request *Request) (reflect.Value, ReplyWriter) {
