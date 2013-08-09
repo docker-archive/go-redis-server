@@ -6,19 +6,21 @@ import (
 	"reflect"
 )
 
-type AutoHandler interface {
-	GET(key string) ([]byte, error)
-	SET(key string, value []byte) error
-	HMSET(key string, values *map[string][]byte) error
-	HGETALL(key string) (*map[string][]byte, error)
-	HGET(hash string, key string) ([]byte, error)
-	HSET(hash string, key string, value []byte) error
-	BRPOP(key string, params ...[]byte) ([][]byte, error)
-	SUBSCRIBE(channel string, channels ...[]byte) (*ChannelWriter, error)
-	DEL(key string, keys ...[]byte) (int, error)
-}
+type CheckerFn func(request *Request) (reflect.Value, ReplyWriter)
 
-func NewAutoHandler(autoHandler AutoHandler) (*Handler, error) {
+// type AutoHandler interface {
+// 	GET(key string) ([]byte, error)
+// 	SET(key string, value []byte) error
+// 	HMSET(key string, values *map[string][]byte) error
+// 	HGETALL(key string) (*map[string][]byte, error)
+// 	HGET(hash string, key string) ([]byte, error)
+// 	HSET(hash string, key string, value []byte) error
+// 	BRPOP(key string, params ...[]byte) ([][]byte, error)
+// 	SUBSCRIBE(channel string, channels ...[]byte) (*ChannelWriter, error)
+// 	DEL(key string, keys ...[]byte) (int, error)
+// }
+
+func NewAutoHandler(autoHandler interface{}) (*Handler, error) {
 	handler := &Handler{}
 
 	rh := reflect.TypeOf(autoHandler)
@@ -33,7 +35,7 @@ func NewAutoHandler(autoHandler AutoHandler) (*Handler, error) {
 	return handler, nil
 }
 
-func createHandlerFn(autoHandler AutoHandler, method *reflect.Method) (HandlerFn, error) {
+func createHandlerFn(autoHandler interface{}, method *reflect.Method) (HandlerFn, error) {
 	errorType := reflect.TypeOf(createHandlerFn).Out(1)
 	mtype := method.Func.Type()
 	checkers, err := createCheckers(method)
@@ -49,14 +51,13 @@ func createHandlerFn(autoHandler AutoHandler, method *reflect.Method) (HandlerFn
 		return nil, errors.New("Too many return values")
 	}
 	if t := mtype.Out(mtype.NumOut() - 1); t != errorType {
-		return nil, errors.New(
-			fmt.Sprintf("Last return value must be an error (not %s)", t))
+		return nil, fmt.Errorf("Last return value must be an error (not %s)", t)
 	}
 
 	return handlerFn(autoHandler, method, checkers)
 }
 
-func handlerFn(autoHandler AutoHandler, method *reflect.Method, checkers []CheckerFn) (HandlerFn, error) {
+func handlerFn(autoHandler interface{}, method *reflect.Method, checkers []CheckerFn) (HandlerFn, error) {
 	return func(request *Request) (ReplyWriter, error) {
 		input := []reflect.Value{reflect.ValueOf(autoHandler)}
 		for _, checker := range checkers {
@@ -104,7 +105,7 @@ func createReply(val interface{}) (ReplyWriter, error) {
 	case *ChannelWriter:
 		return val, nil
 	default:
-		return nil, errors.New(fmt.Sprintf("Unsupported type: %s", val))
+		return nil, fmt.Errorf("Unsupported type: %s", val)
 	}
 }
 
@@ -127,14 +128,11 @@ func createCheckers(method *reflect.Method) ([]CheckerFn, error) {
 		case reflect.TypeOf(1):
 			checkers = append(checkers, intChecker(i-1))
 		default:
-			return nil, errors.New(
-				fmt.Sprintf("Argument %d: wrong type %s", i, mtype.In(i)))
+			return nil, fmt.Errorf("Argument %d: wrong type %s", i, mtype.In(i))
 		}
 	}
 	return checkers, nil
 }
-
-type CheckerFn func(request *Request) (reflect.Value, ReplyWriter)
 
 func stringChecker(index int) CheckerFn {
 	return func(request *Request) (reflect.Value, ReplyWriter) {
