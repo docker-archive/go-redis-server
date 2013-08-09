@@ -8,19 +8,19 @@ import (
 
 type CheckerFn func(request *Request) (reflect.Value, ReplyWriter)
 
-type AutoHandler interface {
-	GET(key string) ([]byte, error)
-	SET(key string, value []byte) error
-	HMSET(key string, values *map[string][]byte) error
-	HGETALL(key string) (*map[string][]byte, error)
-	HGET(hash string, key string) ([]byte, error)
-	HSET(hash string, key string, value []byte) error
-	BRPOP(key string, params ...[]byte) ([][]byte, error)
-	SUBSCRIBE(channel string, channels ...[]byte) (*ChannelWriter, error)
-	DEL(key string, keys ...[]byte) (int, error)
-}
+// type AutoHandler interface {
+// 	GET(key string) ([]byte, error)
+// 	SET(key string, value []byte) error
+// 	HMSET(key string, values *map[string][]byte) error
+// 	HGETALL(key string) (*map[string][]byte, error)
+// 	HGET(hash string, key string) ([]byte, error)
+// 	HSET(hash string, key string, value []byte) error
+// 	BRPOP(key string, params ...[]byte) ([][]byte, error)
+// 	SUBSCRIBE(channel string, channels ...[]byte) (*ChannelWriter, error)
+// 	DEL(key string, keys ...[]byte) (int, error)
+// }
 
-func NewAutoHandler(autoHandler AutoHandler) (*Handler, error) {
+func NewAutoHandler(autoHandler interface{}) (*Handler, error) {
 	handler := &Handler{}
 
 	rh := reflect.TypeOf(autoHandler)
@@ -35,7 +35,7 @@ func NewAutoHandler(autoHandler AutoHandler) (*Handler, error) {
 	return handler, nil
 }
 
-func createHandlerFn(autoHandler AutoHandler, method *reflect.Method) (HandlerFn, error) {
+func createHandlerFn(autoHandler interface{}, method *reflect.Method) (HandlerFn, error) {
 	errorType := reflect.TypeOf(createHandlerFn).Out(1)
 	mtype := method.Func.Type()
 	checkers, err := createCheckers(method)
@@ -57,7 +57,7 @@ func createHandlerFn(autoHandler AutoHandler, method *reflect.Method) (HandlerFn
 	return handlerFn(autoHandler, method, checkers)
 }
 
-func handlerFn(autoHandler AutoHandler, method *reflect.Method, checkers []CheckerFn) (HandlerFn, error) {
+func handlerFn(autoHandler interface{}, method *reflect.Method, checkers []CheckerFn) (HandlerFn, error) {
 	return func(request *Request) (ReplyWriter, error) {
 		input := []reflect.Value{reflect.ValueOf(autoHandler)}
 		for _, checker := range checkers {
