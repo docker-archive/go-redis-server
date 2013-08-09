@@ -9,37 +9,37 @@ type Request struct {
 	args [][]byte
 }
 
-func (request *Request) HasArgument(index int) bool {
-	return len(request.args) >= index+1
+func (r *Request) HasArgument(index int) bool {
+	return len(r.args) >= index+1
 }
 
-func (request *Request) ExpectArgument(index int) ReplyWriter {
-	if !request.HasArgument(index) {
+func (r *Request) ExpectArgument(index int) ReplyWriter {
+	if !r.HasArgument(index) {
 		return NewError("Not enough arguments")
 	}
 	return nil
 }
 
-func (request *Request) GetString(index int) (string, ReplyWriter) {
-	if reply := request.ExpectArgument(index); reply != nil {
+func (r *Request) GetString(index int) (string, ReplyWriter) {
+	if reply := r.ExpectArgument(index); reply != nil {
 		return "", reply
 	}
-	return string(request.args[index]), nil
+	return string(r.args[index]), nil
 }
 
-func (request *Request) GetInteger(index int) (int, ReplyWriter) {
-	if reply := request.ExpectArgument(index); reply != nil {
+func (r *Request) GetInteger(index int) (int, ReplyWriter) {
+	if reply := r.ExpectArgument(index); reply != nil {
 		return -1, reply
 	}
-	i, err := strconv.Atoi(string(request.args[index]))
+	i, err := strconv.Atoi(string(r.args[index]))
 	if err != nil {
 		return -1, NewError("Expected integer")
 	}
 	return i, nil
 }
 
-func (request *Request) GetPositiveInteger(index int) (int, ReplyWriter) {
-	i, reply := request.GetInteger(index)
+func (r *Request) GetPositiveInteger(index int) (int, ReplyWriter) {
+	i, reply := r.GetInteger(index)
 	if reply != nil {
 		return -1, reply
 	}
@@ -49,8 +49,8 @@ func (request *Request) GetPositiveInteger(index int) (int, ReplyWriter) {
 	return i, nil
 }
 
-func (request *Request) GetMap(index int) (*map[string][]byte, ReplyWriter) {
-	count := len(request.args) - index
+func (r *Request) GetMap(index int) (*map[string][]byte, ReplyWriter) {
+	count := len(r.args) - index
 	if count <= 0 {
 		return nil, NewError("Expected at least one key val pair")
 	}
@@ -58,12 +58,12 @@ func (request *Request) GetMap(index int) (*map[string][]byte, ReplyWriter) {
 		return nil, NewError("Got uneven number of key val pairs")
 	}
 	values := make(map[string][]byte)
-	for i := index; i < len(request.args); i += 2 {
-		key, reply := request.GetString(i)
+	for i := index; i < len(r.args); i += 2 {
+		key, reply := r.GetString(i)
 		if reply != nil {
 			return nil, reply
 		}
-		values[key] = request.args[i+1]
+		values[key] = r.args[i+1]
 	}
 	return &values, nil
 }
