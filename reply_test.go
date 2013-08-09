@@ -2,6 +2,8 @@ package redis
 
 import (
 	"bytes"
+	"errors"
+	"io"
 	"testing"
 )
 
@@ -33,5 +35,50 @@ func TestWriteStatus(t *testing.T) {
 		if n != int64(len(p.expected)) {
 			t.Fatalf("Expected to write %d bytes, wrote %d instead", len(p.expected), n)
 		}
+	}
+}
+
+func TestWriteBytes(t *testing.T) {
+	// Note: we test only failure here. Success is already tested.
+	if _, err := writeBytes([]byte("Hello World!"), NewFailWriter(1)); err == nil {
+		t.Fatal("Error expected after 1 write")
+	}
+	if _, err := writeBytes([]byte("Hello World!"), NewFailWriter(2)); err == nil {
+		t.Fatal("Error expected after 2 writes")
+	}
+}
+
+func TestWriteMultiBytes(t *testing.T) {
+	// Note: we test only failure here. Success is already tested.
+	if _, err := writeMultiBytes(nil, nil); err == nil {
+		t.Fatal("Expect error when writing `nil`")
+	}
+	if _, err := writeMultiBytes([][]byte{[]byte("Hello World!")}, NewFailWriter(1)); err == nil {
+		t.Fatal("Error expected after 1 write")
+	}
+	if _, err := writeMultiBytes([][]byte{[]byte("Hello World!")}, NewFailWriter(2)); err == nil {
+		t.Fatal("Error expected after 2 write")
+	}
+}
+
+type FailWriter struct {
+	io.ReadWriter
+	n int
+}
+
+func (fw *FailWriter) Write(buf []byte) (int, error) {
+	fw.n -= 1
+	if fw.n > 0 {
+		return fw.ReadWriter.Write(buf)
+	}
+	return 0, errors.New("FAILED")
+}
+
+// NewFailWriter instanciate a new writer that will fail after n write.
+func NewFailWriter(n int) io.ReadWriter {
+	w := bytes.NewBuffer([]byte{})
+	return &FailWriter{
+		ReadWriter: w,
+		n:          n,
 	}
 }
