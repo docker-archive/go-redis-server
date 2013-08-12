@@ -8,16 +8,22 @@ import (
 )
 
 type Server struct {
+	Proto   string
 	Addr    string   // TCP address to listen on, ":6389" if empty
 	Handler *Handler // handler to invoke
 }
 
 func (srv *Server) ListenAndServe() error {
 	addr := srv.Addr
-	if addr == "" {
+	if srv.Proto == "" {
+		srv.Proto = "tcp"
+	}
+	if srv.Proto == "unix" && addr == "" {
+		addr = "/tmp/redis.sock"
+	} else if addr == "" {
 		addr = ":6389"
 	}
-	l, e := net.Listen("tcp", addr)
+	l, e := net.Listen(srv.Proto, addr)
 	if e != nil {
 		return e
 	}
