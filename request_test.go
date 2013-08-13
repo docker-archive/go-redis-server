@@ -13,7 +13,7 @@ func TestRequestExpectArgument(t *testing.T) {
 			t.Fatalf("Expected error reply, got nil")
 		}
 	}
-	r = &Request{name: "Hi", args: [][]byte{[]byte{'h', 'i'}}}
+	r = &Request{name: "Hi", args: [][]byte{{'h', 'i'}}}
 	reply := r.ExpectArgument(0)
 	if reply != nil {
 		t.Fatalf("Expected nil reply, got %s", reply)
@@ -43,8 +43,8 @@ func TestRequestGetString(t *testing.T) {
 
 func TestRequestGetInteger(t *testing.T) {
 	invalid := []*Request{
-		&Request{name: "Hi", args: [][]byte{}},
-		&Request{name: "Hi", args: [][]byte{[]byte{'h', 'i'}}},
+		{name: "Hi", args: [][]byte{}},
+		{name: "Hi", args: [][]byte{{'h', 'i'}}},
 	}
 	for _, request := range invalid {
 		_, reply := request.GetInteger(0)
@@ -58,9 +58,9 @@ func TestRequestGetInteger(t *testing.T) {
 		index   int
 		number  int
 	}{
-		{&Request{name: "Hi", args: [][]byte{[]byte{'1'}}}, 0, 1},
-		{&Request{name: "Hi", args: [][]byte{[]byte{'1'}, []byte("42")}}, 1, 42},
-		{&Request{name: "Hi", args: [][]byte{[]byte{'1'}, []byte("-1043")}}, 1, -1043},
+		{&Request{name: "Hi", args: [][]byte{{'1'}}}, 0, 1},
+		{&Request{name: "Hi", args: [][]byte{{'1'}, []byte("42")}}, 1, 42},
+		{&Request{name: "Hi", args: [][]byte{{'1'}, []byte("-1043")}}, 1, -1043},
 	}
 	for _, v := range valid {
 		number, reply := v.request.GetInteger(v.index)
@@ -90,8 +90,8 @@ func TestRequestGetMap(t *testing.T) {
 	}{
 		{&Request{name: "Hi", args: [][]byte{}}, 0},
 		{&Request{name: "Hi", args: [][]byte{}}, 100},
-		{&Request{name: "Hi", args: [][]byte{[]byte{'h', 'i'}}}, 0},
-		{&Request{name: "Hi", args: [][]byte{[]byte{'h', 'i'}, []byte{'h', 'i'}, []byte{'h', 'i'}}}, 0},
+		{&Request{name: "Hi", args: [][]byte{{'h', 'i'}}}, 0},
+		{&Request{name: "Hi", args: [][]byte{{'h', 'i'}, {'h', 'i'}, {'h', 'i'}}}, 0},
 	}
 	for _, v := range invalid {
 		_, reply := v.request.GetMap(v.index)
@@ -109,8 +109,8 @@ func TestRequestGetMap(t *testing.T) {
 			request: &Request{
 				name: "Hi",
 				args: [][]byte{
-					[]byte{'h', 'i'},
-					[]byte{'y', 'o'},
+					{'h', 'i'},
+					{'y', 'o'},
 				},
 			},
 			index:    0,
@@ -135,7 +135,7 @@ func TestRequestGetMap(t *testing.T) {
 		if reply != nil {
 			t.Fatalf("Expected nil reply, got %s for %s %d", reply, v.request, v.index)
 		}
-		if !mapsEqual(*m, v.expected) {
+		if !mapsEqual(m, v.expected) {
 			t.Fatalf("Expected %s got %s for %s", v.expected, v.request, m)
 		}
 	}
