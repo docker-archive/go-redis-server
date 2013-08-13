@@ -139,6 +139,30 @@ func ReplyToString(r ReplyWriter) (string, error) {
 	return b.String(), nil
 }
 
+type MultiChannelWriter struct {
+	Chans []*ChannelWriter
+}
+
+func (c *MultiChannelWriter) WriteTo(w io.Writer) (n int64, err error) {
+	chans := make(chan struct{}, len(c.Chans))
+	for _, elem := range c.Chans {
+		go func(elem io.WriterTo) {
+			defer func() { chans <- struct{}{} }()
+			if n2, err2 := elem.WriteTo(w); err2 != nil {
+				n += n2
+				err = err2
+				return
+			} else {
+				n += n2
+			}
+		}(elem)
+	}
+	for i := 0; i < len(c.Chans); i++ {
+		<-chans
+	}
+	return n, err
+}
+
 type ChannelWriter struct {
 	FirstReply []interface{}
 	Channel    chan []interface{}

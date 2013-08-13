@@ -122,6 +122,8 @@ func createReply(val interface{}) (ReplyWriter, error) {
 		return &IntegerReply{number: v}, nil
 	case *ChannelWriter:
 		return v, nil
+	case *MultiChannelWriter:
+		return v, nil
 	default:
 		return nil, fmt.Errorf("Unsupported type: %s (%s)", v, reflect.TypeOf(v).Name())
 	}

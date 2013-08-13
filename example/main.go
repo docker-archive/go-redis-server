@@ -25,18 +25,22 @@ func (h *MyHandler) SET(key string, value []byte) error {
 	return nil
 }
 
-func (h *MyHandler) SUBSCRIBE(key string, channels ...[]byte) (*redis.ChannelWriter, error) {
-	redis.Debugf("SUBSCRIBE on %s\n", key)
-	cw := &redis.ChannelWriter{
-		FirstReply: []interface{}{
-			"subscribe",
-			key,
-			1,
-		},
-		Channel: make(chan []interface{}),
+func (h *MyHandler) SUBSCRIBE(channels ...[]byte) (*redis.MultiChannelWriter, error) {
+	ret := &redis.MultiChannelWriter{Chans: make([]*redis.ChannelWriter, 0, len(channels))}
+	for _, key := range channels {
+		redis.Debugf("SUBSCRIBE on %s\n", key)
+		cw := &redis.ChannelWriter{
+			FirstReply: []interface{}{
+				"subscribe",
+				key,
+				1,
+			},
+			Channel: make(chan []interface{}),
+		}
+		h.sub[string(key)] = cw
+		ret.Chans = append(ret.Chans, cw)
 	}
-	h.sub[key] = cw
-	return cw, nil
+	return ret, nil
 }
 
 func (h *MyHandler) PUBLISH(key string, value []byte) (int, error) {
