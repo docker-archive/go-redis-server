@@ -30,13 +30,13 @@ func (h *TestHandler) SET(key string, value []byte) error {
 	return nil
 }
 
-func (h *TestHandler) HMSET(key string, values *map[string][]byte) error {
+func (h *TestHandler) HMSET(key string, values map[string][]byte) error {
 	_, exists := h.hashValues[key]
 	if !exists {
 		h.hashValues[key] = Hash{values: make(map[string][]byte)}
 	}
 	hash := h.hashValues[key]
-	for name, val := range *values {
+	for name, val := range values {
 		hash.values[name] = val
 	}
 	return nil
@@ -60,12 +60,12 @@ func (h *TestHandler) HSET(hash string, key string, value []byte) error {
 	return nil
 }
 
-func (h *TestHandler) HGETALL(hash string) (*map[string][]byte, error) {
+func (h *TestHandler) HGETALL(hash string) (map[string][]byte, error) {
 	hs, exists := h.hashValues[hash]
 	if !exists {
 		return nil, nil
 	}
-	return &hs.values, nil
+	return hs.values, nil
 }
 
 func (h *TestHandler) BRPOP(key string, params ...[]byte) ([][]byte, error) {
@@ -74,19 +74,19 @@ func (h *TestHandler) BRPOP(key string, params ...[]byte) ([][]byte, error) {
 }
 
 func (h *TestHandler) SUBSCRIBE(channel string, channels ...[]byte) (*ChannelWriter, error) {
-	output := make(chan [][]byte)
+	output := make(chan []interface{})
 	writer := &ChannelWriter{
-		FirstReply: [][]byte{
-			[]byte("subscribe"),
-			[]byte(channel),
-			[]byte("1"),
+		FirstReply: []interface{}{
+			[]byte("subscribe"), // []byte
+			channel,             // string
+			1,                   // int
 		},
 		Channel: output,
 	}
 	go func() {
-		output <- [][]byte{
+		output <- []interface{}{
 			[]byte("message"),
-			[]byte(channel),
+			channel,
 			[]byte("yo"),
 		}
 		close(output)
@@ -269,7 +269,7 @@ func TestAutoHandler(t *testing.T) {
 				},
 			},
 			expected: []string{
-				"*3\r\n$9\r\nsubscribe\r\n$3\r\nfoo\r\n$1\r\n1\r\n*3\r\n$7\r\nmessage\r\n$3\r\nfoo\r\n$2\r\nyo\r\n",
+				"*3\r\n$9\r\nsubscribe\r\n$3\r\nfoo\r\n:1\r\n*3\r\n$7\r\nmessage\r\n$3\r\nfoo\r\n$2\r\nyo\r\n",
 			},
 		},
 	}

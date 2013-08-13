@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"errors"
 	"io"
+	"reflect"
 	"strconv"
 )
 
@@ -32,23 +33,53 @@ type BulkReply struct {
 	value []byte
 }
 
-func writeBytes(value []byte, w io.Writer) (int64, error) {
+func writeBytes(value interface{}, w io.Writer) (int64, error) {
 	//it's a NullBulkReply
 	if value == nil {
 		n, err := w.Write([]byte("$-1\r\n"))
 		return int64(n), err
 	}
-
-	wrote, err := w.Write([]byte("$" + strconv.Itoa(len(value)) + "\r\n"))
-	if err != nil {
+	switch v := value.(type) {
+	case string:
+		if len(v) == 0 {
+			n, err := w.Write([]byte("$-1\r\n"))
+			return int64(n), err
+		}
+		wrote, err := w.Write([]byte("$" + strconv.Itoa(len(v)) + "\r\n"))
+		if err != nil {
+			return int64(wrote), err
+		}
+		wroteBytes, err := w.Write([]byte(v))
+		if err != nil {
+			return int64(wrote + wroteBytes), err
+		}
+		wroteCrLf, err := w.Write([]byte("\r\n"))
+		return int64(wrote + wroteBytes + wroteCrLf), err
+	case []byte:
+		if len(v) == 0 {
+			n, err := w.Write([]byte("$-1\r\n"))
+			return int64(n), err
+		}
+		wrote, err := w.Write([]byte("$" + strconv.Itoa(len(v)) + "\r\n"))
+		if err != nil {
+			return int64(wrote), err
+		}
+		wroteBytes, err := w.Write(v)
+		if err != nil {
+			return int64(wrote + wroteBytes), err
+		}
+		wroteCrLf, err := w.Write([]byte("\r\n"))
+		return int64(wrote + wroteBytes + wroteCrLf), err
+	case int:
+		wrote, err := w.Write([]byte(":" + strconv.Itoa(v) + "\r\n"))
+		if err != nil {
+			return int64(wrote), err
+		}
 		return int64(wrote), err
 	}
-	wroteBytes, err := w.Write(value)
-	if err != nil {
-		return int64(wrote + wroteBytes), err
-	}
-	wroteCrLf, err := w.Write([]byte("\r\n"))
-	return int64(wrote + wroteBytes + wroteCrLf), err
+
+	Debugf("Invalid type sent to writeBytes: %v", reflect.TypeOf(value).Name())
+	return 0, errors.New("Invalid type sent to writeBytes")
 }
 
 func (r *BulkReply) WriteTo(w io.Writer) (int64, error) {
@@ -57,13 +88,13 @@ func (r *BulkReply) WriteTo(w io.Writer) (int64, error) {
 
 //for nil reply in multi bulk just set []byte as nil
 type MultiBulkReply struct {
-	values [][]byte
+	values []interface{}
 }
 
-func MultiBulkFromMap(m *map[string][]byte) *MultiBulkReply {
-	values := make([][]byte, len(*m)*2)
+func MultiBulkFromMap(m map[string]interface{}) *MultiBulkReply {
+	values := make([]interface{}, len(m)*2)
 	i := 0
-	for key, val := range *m {
+	for key, val := range m {
 		values[i] = []byte(key)
 		values[i+1] = val
 		i += 2
@@ -71,7 +102,7 @@ func MultiBulkFromMap(m *map[string][]byte) *MultiBulkReply {
 	return &MultiBulkReply{values: values}
 }
 
-func writeMultiBytes(values [][]byte, w io.Writer) (int64, error) {
+func writeMultiBytes(values []interface{}, w io.Writer) (int64, error) {
 	if values == nil {
 		return 0, errors.New("Nil in multi bulk replies are not ok")
 	}
@@ -109,8 +140,8 @@ func ReplyToString(r ReplyWriter) (string, error) {
 }
 
 type ChannelWriter struct {
-	FirstReply [][]byte
-	Channel    chan [][]byte
+	FirstReply []interface{}
+	Channel    chan []interface{}
 }
 
 func (c *ChannelWriter) WriteTo(w io.Writer) (int64, error) {

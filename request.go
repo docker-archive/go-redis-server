@@ -49,7 +49,7 @@ func (r *Request) GetPositiveInteger(index int) (int, ReplyWriter) {
 	return i, nil
 }
 
-func (r *Request) GetMap(index int) (*map[string][]byte, ReplyWriter) {
+func (r *Request) GetMap(index int) (map[string][]byte, ReplyWriter) {
 	count := len(r.args) - index
 	if count <= 0 {
 		return nil, NewError("Expected at least one key val pair")
@@ -65,5 +65,5 @@ func (r *Request) GetMap(index int) (*map[string][]byte, ReplyWriter) {
 		}
 		values[key] = r.args[i+1]
 	}
-	return &values, nil
+	return values, nil
 }
