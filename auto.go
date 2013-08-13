@@ -24,7 +24,7 @@ func NewAutoHandler(autoHandler interface{}) (*Handler, error) {
 	handler := &Handler{}
 
 	rh := reflect.TypeOf(autoHandler)
-	for i := 0; i < rh.NumMethod(); i += 1 {
+	for i := 0; i < rh.NumMethod(); i++ {
 		method := rh.Method(i)
 		handlerFn, err := createHandlerFn(autoHandler, &method)
 		if err != nil {
@@ -91,21 +91,41 @@ func handlerFn(autoHandler interface{}, method *reflect.Method, checkers []Check
 }
 
 func createReply(val interface{}) (ReplyWriter, error) {
-	switch val := val.(type) {
-	case [][]byte:
-		return &MultiBulkReply{values: val}, nil
+	switch v := val.(type) {
+	case []interface{}:
+		return &MultiBulkReply{values: v}, nil
 	case string:
-		return &BulkReply{value: []byte(val)}, nil
+		return &BulkReply{value: []byte(v)}, nil
+	case [][]byte:
+		if v, ok := val.([]interface{}); ok {
+			return &MultiBulkReply{values: v}, nil
+		}
+		m := make([]interface{}, len(v), cap(v))
+		for i, elem := range v {
+			m[i] = elem
+		}
+		return &MultiBulkReply{values: m}, nil
 	case []byte:
-		return &BulkReply{value: val}, nil
-	case *map[string][]byte:
-		return MultiBulkFromMap(val), nil
+		return &BulkReply{value: v}, nil
+	case map[string][]byte:
+		if v, ok := val.(map[string]interface{}); ok {
+			return MultiBulkFromMap(v), nil
+		}
+		m := make(map[string]interface{})
+		for k, v := range v {
+			m[k] = v
+		}
+		return MultiBulkFromMap(m), nil
+	case map[string]interface{}:
+		return MultiBulkFromMap(v), nil
 	case int:
-		return &IntegerReply{number: val}, nil
+		return &IntegerReply{number: v}, nil
 	case *ChannelWriter:
-		return val, nil
+		return v, nil
+	case *MultiChannelWriter:
+		return v, nil
 	default:
-		return nil, fmt.Errorf("Unsupported type: %s", val)
+		return nil, fmt.Errorf("Unsupported type: %s (%s)", v, reflect.TypeOf(v).Name())
 	}
 }
 
@@ -120,7 +140,7 @@ func createCheckers(method *reflect.Method) ([]CheckerFn, error) {
 			checkers = append(checkers, byteChecker(i-1))
 		case reflect.TypeOf([][]byte{}):
 			checkers = append(checkers, byteSliceChecker(i-1))
-		case reflect.TypeOf(&map[string][]byte{}):
+		case reflect.TypeOf(map[string][]byte{}):
 			if i != mtype.NumIn()-1 {
 				return nil, errors.New("Map should be the last argument")
 			}

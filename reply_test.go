@@ -17,10 +17,10 @@ func TestWriteStatus(t *testing.T) {
 		{&ErrorReply{code: "ERROR", message: "Something went wrong"}, "-ERROR Something went wrong\r\n"},
 		{&BulkReply{}, "$-1\r\n"},
 		{&BulkReply{[]byte{'h', 'e', 'l', 'l', 'o'}}, "$5\r\nhello\r\n"},
-		{&MultiBulkReply{[][]byte{{'h', 'e', 'l', 'l', 'o'}}}, "*1\r\n$5\r\nhello\r\n"},
-		{&MultiBulkReply{[][]byte{{'h', 'e', 'l', 'l', 'o'}, {'h', 'i'}}}, "*2\r\n$5\r\nhello\r\n$2\r\nhi\r\n"},
-		{&MultiBulkReply{[][]byte{nil, {'h', 'e', 'l', 'l', 'o'}, nil, {'h', 'i'}}}, "*4\r\n$-1\r\n$5\r\nhello\r\n$-1\r\n$2\r\nhi\r\n"},
-		{MultiBulkFromMap(&map[string][]byte{"hello": []byte("there"), "how": []byte("are you")}), "*4\r\n$5\r\nhello\r\n$5\r\nthere\r\n$3\r\nhow\r\n$7\r\nare you\r\n"},
+		{&MultiBulkReply{[]interface{}{[]byte{'h', 'e', 'l', 'l', 'o'}}}, "*1\r\n$5\r\nhello\r\n"},
+		{&MultiBulkReply{[]interface{}{[]byte{'h', 'e', 'l', 'l', 'o'}, []byte{'h', 'i'}}}, "*2\r\n$5\r\nhello\r\n$2\r\nhi\r\n"},
+		{&MultiBulkReply{[]interface{}{nil, []byte{'h', 'e', 'l', 'l', 'o'}, nil, []byte{'h', 'i'}}}, "*4\r\n$-1\r\n$5\r\nhello\r\n$-1\r\n$2\r\nhi\r\n"},
+		{MultiBulkFromMap(map[string]interface{}{"hello": []byte("there"), "how": []byte("are you")}), "*4\r\n$5\r\nhello\r\n$5\r\nthere\r\n$3\r\nhow\r\n$7\r\nare you\r\n"},
 	}
 	for _, p := range replies {
 		var b bytes.Buffer
@@ -53,10 +53,10 @@ func TestWriteMultiBytes(t *testing.T) {
 	if _, err := writeMultiBytes(nil, nil); err == nil {
 		t.Fatal("Expect error when writing `nil`")
 	}
-	if _, err := writeMultiBytes([][]byte{[]byte("Hello World!")}, NewFailWriter(1)); err == nil {
+	if _, err := writeMultiBytes([]interface{}{[]byte("Hello World!")}, NewFailWriter(1)); err == nil {
 		t.Fatal("Error expected after 1 write")
 	}
-	if _, err := writeMultiBytes([][]byte{[]byte("Hello World!")}, NewFailWriter(2)); err == nil {
+	if _, err := writeMultiBytes([]interface{}{[]byte("Hello World!")}, NewFailWriter(2)); err == nil {
 		t.Fatal("Error expected after 2 write")
 	}
 }
