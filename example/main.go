@@ -1,7 +1,7 @@
 package main
 
 import (
-	redis "github.com/creack/go-redis-server"
+	redis "github.com/dotcloud/go-redis-server"
 )
 
 type MyHandler struct {
