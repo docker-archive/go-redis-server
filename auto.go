@@ -58,7 +58,7 @@ func createHandlerFn(autoHandler interface{}, method *reflect.Method) (HandlerFn
 }
 
 func handlerFn(autoHandler interface{}, method *reflect.Method, checkers []CheckerFn) (HandlerFn, error) {
-	return func(request *Request) (ReplyWriter, error) {
+	return func(request *Request, c chan struct{}) (ReplyWriter, error) {
 		input := []reflect.Value{reflect.ValueOf(autoHandler)}
 		for _, checker := range checkers {
 			value, reply := checker(request)
@@ -84,13 +84,13 @@ func handlerFn(autoHandler interface{}, method *reflect.Method, checkers []Check
 		}
 		if len(result) > 1 {
 			ret = result[0].Interface()
-			return createReply(ret)
+			return createReply(ret, c)
 		}
 		return &StatusReply{code: "OK"}, nil
 	}, nil
 }
 
-func createReply(val interface{}) (ReplyWriter, error) {
+func createReply(val interface{}, c chan struct{}) (ReplyWriter, error) {
 	switch v := val.(type) {
 	case []interface{}:
 		return &MultiBulkReply{values: v}, nil
@@ -123,6 +123,10 @@ func createReply(val interface{}) (ReplyWriter, error) {
 	case *ChannelWriter:
 		return v, nil
 	case *MultiChannelWriter:
+		println("New client")
+		for _, mcw := range v.Chans {
+			mcw.clientChan = c
+		}
 		return v, nil
 	default:
 		return nil, fmt.Errorf("Unsupported type: %s (%s)", v, reflect.TypeOf(v).Name())
@@ -148,7 +152,7 @@ func createCheckers(method *reflect.Method) ([]CheckerFn, error) {
 		case reflect.TypeOf(1):
 			checkers = append(checkers, intChecker(i-1))
 		default:
-			return nil, fmt.Errorf("Argument %d: wrong type %s", i, mtype.In(i))
+			return nil, fmt.Errorf("Argument %d: wrong type %s (%s)", i, mtype.In(i), method.Name)
 		}
 	}
 	return checkers, nil

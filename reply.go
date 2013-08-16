@@ -166,6 +166,7 @@ func (c *MultiChannelWriter) WriteTo(w io.Writer) (n int64, err error) {
 type ChannelWriter struct {
 	FirstReply []interface{}
 	Channel    chan []interface{}
+	clientChan chan struct{}
 }
 
 func (c *ChannelWriter) WriteTo(w io.Writer) (int64, error) {
@@ -176,6 +177,8 @@ func (c *ChannelWriter) WriteTo(w io.Writer) (int64, error) {
 
 	for {
 		select {
+		case <-c.clientChan:
+			return totalBytes, err
 		case reply := <-c.Channel:
 			if reply == nil {
 				return totalBytes, nil

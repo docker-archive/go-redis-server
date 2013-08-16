@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"fmt"
 	"io"
+	"io/ioutil"
 	"net"
 )
 
@@ -14,6 +15,9 @@ type Server struct {
 }
 
 func (srv *Server) ListenAndServe() error {
+	if srv.Handler == nil {
+		return fmt.Errorf("nil handler")
+	}
 	addr := srv.Addr
 	if srv.Proto == "" {
 		srv.Proto = "tcp"
@@ -34,6 +38,9 @@ func (srv *Server) ListenAndServe() error {
 // new service goroutine for each.  The service goroutines read requests and
 // then call srv.Handler to reply to them.
 func (srv *Server) Serve(l net.Listener) error {
+	if srv.Handler == nil {
+		return fmt.Errorf("nil handler")
+	}
 	defer l.Close()
 	for {
 		rw, err := l.Accept()
@@ -48,6 +55,9 @@ func (srv *Server) Serve(l net.Listener) error {
 // It reads commands using the redis protocol, passes them to `handler`,
 // and returns the result.
 func Serve(conn io.ReadWriteCloser, handler *Handler) (err error) {
+	if handler == nil {
+		return fmt.Errorf("nil handler")
+	}
 	defer func() {
 		if err != nil {
 			fmt.Fprintf(conn, "-%s\n", err)
@@ -55,15 +65,24 @@ func Serve(conn io.ReadWriteCloser, handler *Handler) (err error) {
 		conn.Close()
 	}()
 	reader := bufio.NewReader(conn)
+	c := make(chan struct{})
 	for {
 		request, err := parseRequest(reader)
 		if err != nil {
 			return err
 		}
-		reply, err := Apply(handler, request)
+		reply, err := Apply(handler, request, c)
 		if err != nil {
 			return err
 		}
+		// Read on `conn` in order to detect client disconnect
+		go func() {
+			// Close chan in order to trigger eventual selects
+			defer close(c)
+			defer conn.Close()
+			defer Debugf("Client disconnected")
+			io.Copy(ioutil.Discard, conn)
+		}()
 		_, err = reply.WriteTo(conn)
 		if err != nil {
 			return err

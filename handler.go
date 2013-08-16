@@ -4,22 +4,26 @@ import (
 	"strings"
 )
 
-type HandlerFn func(r *Request) (ReplyWriter, error)
+type HandlerFn func(r *Request, c chan struct{}) (ReplyWriter, error)
 
 type Handler struct {
 	methods map[string]HandlerFn
 }
 
-func Apply(h *Handler, r *Request) (ReplyWriter, error) {
+func Apply(h *Handler, r *Request, c chan struct{}) (ReplyWriter, error) {
+	if h == nil || h.methods == nil {
+		Debugf("The method map is uninitialized")
+		return methodNotSupported(), nil
+	}
 	fn, exists := h.methods[strings.ToLower(r.name)]
 	if !exists {
 		return methodNotSupported(), nil
 	}
-	return fn(r)
+	return fn(r, c)
 }
 
-func ApplyString(h *Handler, r *Request) (string, error) {
-	reply, err := Apply(h, r)
+func ApplyString(h *Handler, r *Request, c chan struct{}) (string, error) {
+	reply, err := Apply(h, r, c)
 	if err != nil {
 		return "", err
 	}
