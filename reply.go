@@ -93,7 +93,6 @@ type MonitorReply struct {
 func (r *MonitorReply) WriteTo(w io.Writer) (int64, error) {
 	totalBytes := 0
 	for line := range r.c {
-		println("SIGNAL!:", line)
 		if n, err := w.Write([]byte("+" + line + "\r\n")); err != nil {
 			totalBytes += n
 			return int64(totalBytes), err
