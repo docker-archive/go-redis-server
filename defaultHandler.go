@@ -3,58 +3,25 @@ package redis
 import (
 	"fmt"
 	"reflect"
-	"sync"
 )
 
-type brStack struct {
-	sync.Mutex
-	stack [][]byte
-	c     chan *brStack
-	key   []byte
-}
-
-func (s *brStack) pop() []byte {
-	s.Lock()
-	defer s.Unlock()
-
-	if s.stack == nil || len(s.stack) == 0 {
-		return nil
-	}
-
-	var ret []byte
-	if len(s.stack)-1 == 0 {
-		ret, s.stack = s.stack[0], [][]byte{}
-	} else {
-		ret, s.stack = s.stack[len(s.stack)-1], s.stack[:len(s.stack)-1]
-	}
-	return ret
-}
-
-func (s *brStack) push(val []byte) {
-	s.Lock()
-	defer s.Unlock()
-	s.stack = append(s.stack, val)
-	go func() { s.c <- s }()
-}
-
-func NewBrStack(key []byte) *brStack {
-	return &brStack{
-		stack: [][]byte{},
-		c:     make(chan *brStack),
-		key:   key,
-	}
-}
+type (
+	HashValue   map[string][]byte
+	HashHash    map[string]HashValue
+	HashSub     map[string][]*ChannelWriter
+	HashBrStack map[string]*brStack
+)
 
 type DefaultHandler struct {
-	values  map[string][]byte
-	hvalues map[string]map[string][]byte
-	sub     map[string][]*ChannelWriter
-	brstack map[string]*brStack
+	values  HashValue
+	hvalues HashHash
+	sub     HashSub
+	brstack HashBrStack
 }
 
 func (h *DefaultHandler) RPUSH(key string, values ...[]byte) (int, error) {
 	if h.brstack == nil {
-		h.brstack = make(map[string]*brStack)
+		h.brstack = make(HashBrStack)
 	}
 	if _, exists := h.brstack[key]; !exists {
 		h.brstack[key] = NewBrStack([]byte(key))
@@ -67,7 +34,7 @@ func (h *DefaultHandler) RPUSH(key string, values ...[]byte) (int, error) {
 
 func (h *DefaultHandler) BRPOP(keys ...[]byte) ([][]byte, error) {
 	if h.brstack == nil {
-		h.brstack = make(map[string]*brStack)
+		h.brstack = make(HashBrStack)
 	}
 
 	selectCases := []reflect.SelectCase{}
@@ -102,10 +69,10 @@ func (h *DefaultHandler) HGET(key, subkey string) ([]byte, error) {
 
 func (h *DefaultHandler) HSET(key, subkey string, value []byte) error {
 	if h.hvalues == nil {
-		h.hvalues = make(map[string]map[string][]byte)
+		h.hvalues = make(map[string]HashValue)
 	}
 	if _, exists := h.hvalues[key]; !exists {
-		h.hvalues[key] = make(map[string][]byte)
+		h.hvalues[key] = make(HashValue)
 	}
 	h.hvalues[key][subkey] = value
 
@@ -114,7 +81,7 @@ func (h *DefaultHandler) HSET(key, subkey string, value []byte) error {
 
 func (h *DefaultHandler) GET(key string) ([]byte, error) {
 	if h.values == nil {
-		h.values = make(map[string][]byte)
+		h.values = make(HashValue)
 	}
 	v, exists := h.values[key]
 	if !exists {
@@ -127,7 +94,7 @@ func (h *DefaultHandler) GET(key string) ([]byte, error) {
 
 func (h *DefaultHandler) SET(key string, value []byte) error {
 	if h.values == nil {
-		h.values = make(map[string][]byte)
+		h.values = make(HashValue)
 	}
 	Debugf("Setting key [%s] (%s)", key, value)
 	h.values[key] = value
@@ -183,8 +150,8 @@ func (h *DefaultHandler) MONITOR() (*MonitorReply, error) {
 
 func NewDefaultHandler() *DefaultHandler {
 	return &DefaultHandler{
-		values:  make(map[string][]byte),
-		sub:     make(map[string][]*ChannelWriter),
-		brstack: make(map[string]*brStack),
+		values:  make(HashValue),
+		sub:     make(HashSub),
+		brstack: make(HashBrStack),
 	}
 }
