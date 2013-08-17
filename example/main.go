@@ -9,7 +9,14 @@ type MyHandler struct {
 	redis.DefaultHandler
 }
 
-func (h *MyHandler) GET(key string) ([]byte, error) {
+// TEST implement a new command. Non-redis standard, but it is possible.
+func (h *MyHandler) Test() ([]byte, error) {
+	return []byte("Awesome custom redis command!"), nil
+}
+
+// GET override the DefaultHandler's method.
+func (h *MyHandler) Get(key string) ([]byte, error) {
+	// However, we still can call the DefaultHandler GET method and use it.
 	ret, err := h.DefaultHandler.GET(key)
 	if ret == nil {
 		return nil, err
@@ -28,7 +35,11 @@ func main() {
 	if err != nil {
 		panic(err)
 	}
-	server := &redis.Server{Proto: "unix", Handler: handler, Addr: "/tmp/redis.sock"}
+	server := &redis.Server{
+		Proto:   "unix",
+		Handler: handler,
+		Addr:    "/tmp/redis.sock",
+	}
 	if err := server.ListenAndServe(); err != nil {
 		panic(err)
 	}
