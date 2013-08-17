@@ -67,36 +67,38 @@ func (h *DefaultHandler) HGET(key, subkey string) ([]byte, error) {
 	return nil, nil
 }
 
-func (h *DefaultHandler) HSET(key, subkey string, value []byte) error {
+func (h *DefaultHandler) HSET(key, subkey string, value []byte) (int, error) {
+	ret := 0
+
 	if h.hvalues == nil {
-		h.hvalues = make(map[string]HashValue)
+		h.hvalues = make(HashHash)
+		ret = 1
 	}
 	if _, exists := h.hvalues[key]; !exists {
 		h.hvalues[key] = make(HashValue)
+		ret = 1
 	}
+
+	if _, exists := h.hvalues[key][subkey]; !exists {
+		ret = 1
+	}
+
 	h.hvalues[key][subkey] = value
 
-	return nil
+	return ret, nil
 }
 
 func (h *DefaultHandler) GET(key string) ([]byte, error) {
 	if h.values == nil {
-		h.values = make(HashValue)
-	}
-	v, exists := h.values[key]
-	if !exists {
-		Debugf("The requested key [%s] does not exist", key)
 		return nil, nil
 	}
-	Debugf("Getting key [%s] (%s)", key, v)
-	return v, nil
+	return h.values[key], nil
 }
 
 func (h *DefaultHandler) SET(key string, value []byte) error {
 	if h.values == nil {
 		h.values = make(HashValue)
 	}
-	Debugf("Setting key [%s] (%s)", key, value)
 	h.values[key] = value
 	return nil
 }
