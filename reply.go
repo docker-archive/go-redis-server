@@ -125,10 +125,6 @@ func (r *MultiBulkReply) WriteTo(w io.Writer) (int64, error) {
 	return writeMultiBytes(r.values, w)
 }
 
-func methodNotSupported() ReplyWriter {
-	return NewError("Method is not supported")
-}
-
 func ReplyToString(r ReplyWriter) (string, error) {
 	var b bytes.Buffer
 

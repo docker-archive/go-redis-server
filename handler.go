@@ -13,11 +13,11 @@ type Handler struct {
 func Apply(h *Handler, r *Request, c chan struct{}) (ReplyWriter, error) {
 	if h == nil || h.methods == nil {
 		Debugf("The method map is uninitialized")
-		return methodNotSupported(), nil
+		return ErrMethodNotSupported, nil
 	}
 	fn, exists := h.methods[strings.ToLower(r.name)]
 	if !exists {
-		return methodNotSupported(), nil
+		return ErrMethodNotSupported, nil
 	}
 	return fn(r, c)
 }

@@ -1,6 +1,7 @@
 package redis
 
 import (
+	"bytes"
 	"errors"
 	"fmt"
 	"reflect"
@@ -15,8 +16,8 @@ type CheckerFn func(request *Request) (reflect.Value, ReplyWriter)
 // 	HGETALL(key string) (*map[string][]byte, error)
 // 	HGET(hash string, key string) ([]byte, error)
 // 	HSET(hash string, key string, value []byte) error
-// 	BRPOP(key string, params ...[]byte) ([][]byte, error)
-// 	SUBSCRIBE(channel string, channels ...[]byte) (*ChannelWriter, error)
+// 	BRPOP(channels ...[]byte) ([][]byte, error)
+// 	SUBSCRIBE(channels ...[]byte) (*ChannelWriter, error)
 // 	DEL(key string, keys ...[]byte) (int, error)
 // }
 
@@ -60,6 +61,9 @@ func createHandlerFn(autoHandler interface{}, method *reflect.Method) (HandlerFn
 func handlerFn(autoHandler interface{}, method *reflect.Method, checkers []CheckerFn) (HandlerFn, error) {
 	return func(request *Request, c chan struct{}) (ReplyWriter, error) {
 		input := []reflect.Value{reflect.ValueOf(autoHandler)}
+		if method.Func.Type().NumIn() < len(request.args) {
+			return ErrTooMuchArgs, nil
+		}
 		for _, checker := range checkers {
 			value, reply := checker(request)
 			if reply != nil {
@@ -67,7 +71,7 @@ func handlerFn(autoHandler interface{}, method *reflect.Method, checkers []Check
 			}
 			input = append(input, value)
 		}
-
+		Debugf("-----> %s %s\n", request.name, bytes.Join(request.args, []byte{' '}))
 		var result []reflect.Value
 		if method.Func.Type().IsVariadic() {
 			result = method.Func.CallSlice(input)
