@@ -15,7 +15,6 @@ type StatusReply struct {
 }
 
 func (r *StatusReply) WriteTo(w io.Writer) (int64, error) {
-	Debugf("Status")
 	n, err := w.Write([]byte("+" + r.code + "\r\n"))
 	return int64(n), err
 }
@@ -91,16 +90,18 @@ type MonitorReply struct {
 }
 
 func (r *MonitorReply) WriteTo(w io.Writer) (int64, error) {
-	totalBytes := 0
+	statusReply := &StatusReply{}
+	totalBytes := int64(0)
 	for line := range r.c {
-		if n, err := w.Write([]byte("+" + line + "\r\n")); err != nil {
+		statusReply.code = line
+		if n, err := statusReply.WriteTo(w); err != nil {
 			totalBytes += n
 			return int64(totalBytes), err
 		} else {
 			totalBytes += n
 		}
 	}
-	return int64(totalBytes), nil
+	return totalBytes, nil
 }
 
 //for nil reply in multi bulk just set []byte as nil

@@ -30,15 +30,22 @@ func (h *TestHandler) SET(key string, value []byte) error {
 	return nil
 }
 
-func (h *TestHandler) HMSET(key string, values map[string][]byte) error {
+func (h *TestHandler) HMSET(key string, values ...[]byte) error {
+	if len(values)%2 != 0 {
+		return ErrWrongArgsNumber
+	}
 	_, exists := h.hashValues[key]
 	if !exists {
 		h.hashValues[key] = Hash{values: make(map[string][]byte)}
 	}
 	hash := h.hashValues[key]
-	for name, val := range values {
-		hash.values[name] = val
+
+	for i := 0; i < len(values); i += 2 {
+		name := values[i]
+		val := values[i+1]
+		hash.values[string(name)] = val
 	}
+
 	return nil
 }
 
@@ -275,7 +282,7 @@ func TestAutoHandler(t *testing.T) {
 	}
 	for _, v := range expected {
 		c := make(chan struct{})
-		reply, err := ApplyString(h, v.request, c)
+		reply, err := ApplyString(h, v.request, c, &[]chan string{})
 		if err != nil {
 			t.Fatalf("Unexpected error: %s", err)
 		}
@@ -287,7 +294,7 @@ func TestAutoHandler(t *testing.T) {
 			}
 		}
 		if match == false {
-			t.Fatalf("Eexpected one of %q, got: %q", v.expected, reply)
+			t.Fatalf("Expected one of %q, got: %q for request %q", v.expected, reply, v.request)
 		}
 		close(c)
 	}

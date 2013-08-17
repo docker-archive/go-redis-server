@@ -62,7 +62,7 @@ func createHandlerFn(autoHandler interface{}, method *reflect.Method) (HandlerFn
 func handlerFn(autoHandler interface{}, method *reflect.Method, checkers []CheckerFn) (HandlerFn, error) {
 	return func(request *Request, c chan struct{}, monitorChans *[]chan string) (ReplyWriter, error) {
 		input := []reflect.Value{reflect.ValueOf(autoHandler)}
-		if method.Func.Type().NumIn() < len(request.args) {
+		if method.Func.Type().NumIn() < len(request.args) && !method.Func.Type().IsVariadic() {
 			return ErrTooMuchArgs, nil
 		}
 		for _, checker := range checkers {
@@ -95,11 +95,8 @@ func handlerFn(autoHandler interface{}, method *reflect.Method, checkers []Check
 			// convert to redis error reply
 			return NewError(err.Error()), nil
 		}
-		fmt.Printf("Result len: %d\n", len(result))
 		if len(result) > 1 {
 			ret = result[0].Interface()
-			fmt.Printf("Len monitors: %d\n", len(*monitorChans))
-			defer fmt.Printf("Len monitors (defer): %d\n", len(*monitorChans))
 			return createReply(ret, c, monitorChans)
 		}
 		return &StatusReply{code: "OK"}, nil
