@@ -274,7 +274,8 @@ func TestAutoHandler(t *testing.T) {
 		},
 	}
 	for _, v := range expected {
-		reply, err := ApplyString(h, v.request)
+		c := make(chan struct{})
+		reply, err := ApplyString(h, v.request, c)
 		if err != nil {
 			t.Fatalf("Unexpected error: %s", err)
 		}
@@ -288,5 +289,6 @@ func TestAutoHandler(t *testing.T) {
 		if match == false {
 			t.Fatalf("Eexpected one of %q, got: %q", v.expected, reply)
 		}
+		close(c)
 	}
 }

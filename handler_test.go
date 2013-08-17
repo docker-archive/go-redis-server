@@ -6,7 +6,9 @@ import (
 )
 
 func TestEmptyHandler(t *testing.T) {
-	reply, err := ApplyString(&Handler{}, &Request{})
+	c := make(chan struct{})
+	defer close(c)
+	reply, err := ApplyString(&Handler{}, &Request{}, c)
 	if err != nil {
 		t.Fatalf("Unexpected error: %s", err)
 	}
@@ -17,10 +19,10 @@ func TestEmptyHandler(t *testing.T) {
 
 func TestCustomHandler(t *testing.T) {
 	h := &Handler{}
-	h.Register("GET", func(r *Request) (ReplyWriter, error) {
+	h.Register("GET", func(r *Request, c chan struct{}) (ReplyWriter, error) {
 		return &BulkReply{value: []byte("42")}, nil
 	})
-	reply, err := ApplyString(h, &Request{name: "gEt"})
+	reply, err := ApplyString(h, &Request{name: "gEt"}, nil)
 	if err != nil {
 		t.Fatalf("Unexpected error: %s", err)
 	}

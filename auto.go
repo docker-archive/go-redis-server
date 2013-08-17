@@ -1,9 +1,11 @@
 package redis
 
 import (
+	"bytes"
 	"errors"
 	"fmt"
 	"reflect"
+	"time"
 )
 
 type CheckerFn func(request *Request) (reflect.Value, ReplyWriter)
@@ -15,8 +17,8 @@ type CheckerFn func(request *Request) (reflect.Value, ReplyWriter)
 // 	HGETALL(key string) (*map[string][]byte, error)
 // 	HGET(hash string, key string) ([]byte, error)
 // 	HSET(hash string, key string, value []byte) error
-// 	BRPOP(key string, params ...[]byte) ([][]byte, error)
-// 	SUBSCRIBE(channel string, channels ...[]byte) (*ChannelWriter, error)
+// 	BRPOP(channels ...[]byte) ([][]byte, error)
+// 	SUBSCRIBE(channels ...[]byte) (*ChannelWriter, error)
 // 	DEL(key string, keys ...[]byte) (int, error)
 // }
 
@@ -58,8 +60,11 @@ func createHandlerFn(autoHandler interface{}, method *reflect.Method) (HandlerFn
 }
 
 func handlerFn(autoHandler interface{}, method *reflect.Method, checkers []CheckerFn) (HandlerFn, error) {
-	return func(request *Request) (ReplyWriter, error) {
+	return func(request *Request, c chan struct{}, monitorChans *[]chan string) (ReplyWriter, error) {
 		input := []reflect.Value{reflect.ValueOf(autoHandler)}
+		if method.Func.Type().NumIn() < len(request.args) {
+			return ErrTooMuchArgs, nil
+		}
 		for _, checker := range checkers {
 			value, reply := checker(request)
 			if reply != nil {
@@ -67,7 +72,15 @@ func handlerFn(autoHandler interface{}, method *reflect.Method, checkers []Check
 			}
 			input = append(input, value)
 		}
-
+		monitorString := fmt.Sprintf("%.6f [0 %s] \"%s\" \"%s\"", float64(time.Now().UTC().UnixNano())/1e9, request.clientAddr, request.name, bytes.Join(request.args, []byte{'"', ' ', '"'}))
+		for _, c := range *monitorChans {
+			select {
+			case c <- monitorString:
+			default:
+			}
+		}
+		Debugf("Monitors: %d\n", len(*monitorChans))
+		Debugf("%s\n", monitorString)
 		var result []reflect.Value
 		if method.Func.Type().IsVariadic() {
 			result = method.Func.CallSlice(input)
@@ -82,15 +95,18 @@ func handlerFn(autoHandler interface{}, method *reflect.Method, checkers []Check
 			// convert to redis error reply
 			return NewError(err.Error()), nil
 		}
+		fmt.Printf("Result len: %d\n", len(result))
 		if len(result) > 1 {
 			ret = result[0].Interface()
-			return createReply(ret)
+			fmt.Printf("Len monitors: %d\n", len(*monitorChans))
+			defer fmt.Printf("Len monitors (defer): %d\n", len(*monitorChans))
+			return createReply(ret, c, monitorChans)
 		}
 		return &StatusReply{code: "OK"}, nil
 	}, nil
 }
 
-func createReply(val interface{}) (ReplyWriter, error) {
+func createReply(val interface{}, c chan struct{}, monitorChans *[]chan string) (ReplyWriter, error) {
 	switch v := val.(type) {
 	case []interface{}:
 		return &MultiBulkReply{values: v}, nil
@@ -120,9 +136,19 @@ func createReply(val interface{}) (ReplyWriter, error) {
 		return MultiBulkFromMap(v), nil
 	case int:
 		return &IntegerReply{number: v}, nil
+	case *MonitorReply:
+		c := make(chan string)
+		*monitorChans = append(*monitorChans, c)
+		println("len monitor: ", len(*monitorChans))
+		v.c = c
+		return v, nil
 	case *ChannelWriter:
 		return v, nil
 	case *MultiChannelWriter:
+		println("New client")
+		for _, mcw := range v.Chans {
+			mcw.clientChan = c
+		}
 		return v, nil
 	default:
 		return nil, fmt.Errorf("Unsupported type: %s (%s)", v, reflect.TypeOf(v).Name())
@@ -148,7 +174,7 @@ func createCheckers(method *reflect.Method) ([]CheckerFn, error) {
 		case reflect.TypeOf(1):
 			checkers = append(checkers, intChecker(i-1))
 		default:
-			return nil, fmt.Errorf("Argument %d: wrong type %s", i, mtype.In(i))
+			return nil, fmt.Errorf("Argument %d: wrong type %s (%s)", i, mtype.In(i), method.Name)
 		}
 	}
 	return checkers, nil

@@ -86,6 +86,24 @@ func (r *BulkReply) WriteTo(w io.Writer) (int64, error) {
 	return writeBytes(r.value, w)
 }
 
+type MonitorReply struct {
+	c <-chan string
+}
+
+func (r *MonitorReply) WriteTo(w io.Writer) (int64, error) {
+	totalBytes := 0
+	for line := range r.c {
+		println("SIGNAL!:", line)
+		if n, err := w.Write([]byte("+" + line + "\r\n")); err != nil {
+			totalBytes += n
+			return int64(totalBytes), err
+		} else {
+			totalBytes += n
+		}
+	}
+	return int64(totalBytes), nil
+}
+
 //for nil reply in multi bulk just set []byte as nil
 type MultiBulkReply struct {
 	values []interface{}
@@ -125,10 +143,6 @@ func (r *MultiBulkReply) WriteTo(w io.Writer) (int64, error) {
 	return writeMultiBytes(r.values, w)
 }
 
-func methodNotSupported() ReplyWriter {
-	return NewError("Method is not supported")
-}
-
 func ReplyToString(r ReplyWriter) (string, error) {
 	var b bytes.Buffer
 
@@ -166,6 +180,7 @@ func (c *MultiChannelWriter) WriteTo(w io.Writer) (n int64, err error) {
 type ChannelWriter struct {
 	FirstReply []interface{}
 	Channel    chan []interface{}
+	clientChan chan struct{}
 }
 
 func (c *ChannelWriter) WriteTo(w io.Writer) (int64, error) {
@@ -176,6 +191,8 @@ func (c *ChannelWriter) WriteTo(w io.Writer) (int64, error) {
 
 	for {
 		select {
+		case <-c.clientChan:
+			return totalBytes, err
 		case reply := <-c.Channel:
 			if reply == nil {
 				return totalBytes, nil
