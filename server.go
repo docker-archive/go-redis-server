@@ -16,7 +16,11 @@ type Server struct {
 
 func (srv *Server) ListenAndServe() error {
 	if srv.Handler == nil {
-		return fmt.Errorf("nil handler")
+		h, err := NewAutoHandler(NewDefaultHandler())
+		if err != nil {
+			return err
+		}
+		srv.Handler = h
 	}
 	addr := srv.Addr
 	if srv.Proto == "" {
@@ -83,6 +87,7 @@ func Serve(conn net.Conn, handler *Handler, monitorChan *[]chan string) (err err
 		default:
 			request.clientAddr = co.RemoteAddr().String()
 		}
+
 		reply, err := Apply(handler, request, c, monitorChan)
 		if err != nil {
 			return err
