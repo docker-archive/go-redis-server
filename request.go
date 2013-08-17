@@ -5,8 +5,9 @@ import (
 )
 
 type Request struct {
-	name string
-	args [][]byte
+	name       string
+	args       [][]byte
+	clientAddr string
 }
 
 func (r *Request) HasArgument(index int) bool {

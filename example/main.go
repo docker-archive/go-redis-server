@@ -174,6 +174,10 @@ func (h *MyHandler) PUBLISH(key string, value []byte) (int, error) {
 	return i, nil
 }
 
+func (h *MyHandler) MONITOR() (*redis.MonitorReply, error) {
+	return &redis.MonitorReply{}, nil
+}
+
 func NewHandler() *MyHandler {
 	return &MyHandler{
 		values:  make(map[string][]byte),

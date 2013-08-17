@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"reflect"
+	"time"
 )
 
 type CheckerFn func(request *Request) (reflect.Value, ReplyWriter)
@@ -59,7 +60,7 @@ func createHandlerFn(autoHandler interface{}, method *reflect.Method) (HandlerFn
 }
 
 func handlerFn(autoHandler interface{}, method *reflect.Method, checkers []CheckerFn) (HandlerFn, error) {
-	return func(request *Request, c chan struct{}) (ReplyWriter, error) {
+	return func(request *Request, c chan struct{}, monitorChans *[]chan string) (ReplyWriter, error) {
 		input := []reflect.Value{reflect.ValueOf(autoHandler)}
 		if method.Func.Type().NumIn() < len(request.args) {
 			return ErrTooMuchArgs, nil
@@ -71,7 +72,15 @@ func handlerFn(autoHandler interface{}, method *reflect.Method, checkers []Check
 			}
 			input = append(input, value)
 		}
-		Debugf("-----> %s %s\n", request.name, bytes.Join(request.args, []byte{' '}))
+		monitorString := fmt.Sprintf("%.6f [0 %s] \"%s\" \"%s\"", float64(time.Now().UTC().UnixNano())/1e9, request.clientAddr, request.name, bytes.Join(request.args, []byte{'"', ' ', '"'}))
+		for _, c := range *monitorChans {
+			select {
+			case c <- monitorString:
+			default:
+			}
+		}
+		Debugf("Monitors: %d\n", len(*monitorChans))
+		Debugf("%s\n", monitorString)
 		var result []reflect.Value
 		if method.Func.Type().IsVariadic() {
 			result = method.Func.CallSlice(input)
@@ -86,15 +95,18 @@ func handlerFn(autoHandler interface{}, method *reflect.Method, checkers []Check
 			// convert to redis error reply
 			return NewError(err.Error()), nil
 		}
+		fmt.Printf("Result len: %d\n", len(result))
 		if len(result) > 1 {
 			ret = result[0].Interface()
-			return createReply(ret, c)
+			fmt.Printf("Len monitors: %d\n", len(*monitorChans))
+			defer fmt.Printf("Len monitors (defer): %d\n", len(*monitorChans))
+			return createReply(ret, c, monitorChans)
 		}
 		return &StatusReply{code: "OK"}, nil
 	}, nil
 }
 
-func createReply(val interface{}, c chan struct{}) (ReplyWriter, error) {
+func createReply(val interface{}, c chan struct{}, monitorChans *[]chan string) (ReplyWriter, error) {
 	switch v := val.(type) {
 	case []interface{}:
 		return &MultiBulkReply{values: v}, nil
@@ -124,6 +136,12 @@ func createReply(val interface{}, c chan struct{}) (ReplyWriter, error) {
 		return MultiBulkFromMap(v), nil
 	case int:
 		return &IntegerReply{number: v}, nil
+	case *MonitorReply:
+		c := make(chan string)
+		*monitorChans = append(*monitorChans, c)
+		println("len monitor: ", len(*monitorChans))
+		v.c = c
+		return v, nil
 	case *ChannelWriter:
 		return v, nil
 	case *MultiChannelWriter:

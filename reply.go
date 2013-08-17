@@ -86,6 +86,24 @@ func (r *BulkReply) WriteTo(w io.Writer) (int64, error) {
 	return writeBytes(r.value, w)
 }
 
+type MonitorReply struct {
+	c <-chan string
+}
+
+func (r *MonitorReply) WriteTo(w io.Writer) (int64, error) {
+	totalBytes := 0
+	for line := range r.c {
+		println("SIGNAL!:", line)
+		if n, err := w.Write([]byte("+" + line + "\r\n")); err != nil {
+			totalBytes += n
+			return int64(totalBytes), err
+		} else {
+			totalBytes += n
+		}
+	}
+	return int64(totalBytes), nil
+}
+
 //for nil reply in multi bulk just set []byte as nil
 type MultiBulkReply struct {
 	values []interface{}

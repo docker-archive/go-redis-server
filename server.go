@@ -42,19 +42,20 @@ func (srv *Server) Serve(l net.Listener) error {
 		return fmt.Errorf("nil handler")
 	}
 	defer l.Close()
+	monitorChan := []chan string{}
 	for {
 		rw, err := l.Accept()
 		if err != nil {
 			return err
 		}
-		go Serve(rw, srv.Handler)
+		go Serve(rw, srv.Handler, &monitorChan)
 	}
 }
 
 // Serve starts a new redis session, using `conn` as a transport.
 // It reads commands using the redis protocol, passes them to `handler`,
 // and returns the result.
-func Serve(conn io.ReadWriteCloser, handler *Handler) (err error) {
+func Serve(conn net.Conn, handler *Handler, monitorChan *[]chan string) (err error) {
 	if handler == nil {
 		return fmt.Errorf("nil handler")
 	}
@@ -71,7 +72,18 @@ func Serve(conn io.ReadWriteCloser, handler *Handler) (err error) {
 		if err != nil {
 			return err
 		}
-		reply, err := Apply(handler, request, c)
+
+		switch co := conn.(type) {
+		case *net.UnixConn:
+			f, err := conn.(*net.UnixConn).File()
+			if err != nil {
+				return err
+			}
+			request.clientAddr = f.Name()
+		default:
+			request.clientAddr = co.RemoteAddr().String()
+		}
+		reply, err := Apply(handler, request, c, monitorChan)
 		if err != nil {
 			return err
 		}
