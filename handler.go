@@ -34,5 +34,6 @@ func (h *Handler) Register(name string, fn HandlerFn) {
 	if h.methods == nil {
 		h.methods = make(map[string]HandlerFn)
 	}
+	Debugf("REGISTER: %s", strings.ToLower(name))
 	h.methods[strings.ToLower(name)] = fn
 }
