@@ -73,39 +73,44 @@ func Serve(conn net.Conn, handler *Handler, monitorChan *[]chan string) (err err
 		}
 		conn.Close()
 	}()
-	reader := bufio.NewReader(conn)
+
 	c := make(chan struct{})
-	for {
-		request, err := parseRequest(reader)
+
+	// Read on `conn` in order to detect client disconnect
+	go func() {
+		// Close chan in order to trigger eventual selects
+		defer close(c)
+		defer Debugf("Client disconnected")
+		// FIXME: move conn within the request.
+		io.Copy(ioutil.Discard, conn)
+	}()
+
+	var clientAddr string
+
+	switch co := conn.(type) {
+	case *net.UnixConn:
+		f, err := conn.(*net.UnixConn).File()
 		if err != nil {
 			return err
 		}
+		clientAddr = f.Name()
+	default:
+		clientAddr = co.RemoteAddr().String()
+	}
 
-		switch co := conn.(type) {
-		case *net.UnixConn:
-			f, err := conn.(*net.UnixConn).File()
-			if err != nil {
-				return err
-			}
-			request.clientAddr = f.Name()
-		default:
-			request.clientAddr = co.RemoteAddr().String()
+	r := bufio.NewReader(conn)
+	for {
+		request, err := parseRequest(r)
+		if err != nil {
+			return err
 		}
+		request.clientAddr = clientAddr
 
 		reply, err := Apply(handler, request, c, monitorChan)
 		if err != nil {
 			return err
 		}
-		// Read on `conn` in order to detect client disconnect
-		go func() {
-			// Close chan in order to trigger eventual selects
-			defer close(c)
-			defer conn.Close()
-			defer Debugf("Client disconnected")
-			io.Copy(ioutil.Discard, conn)
-		}()
-		_, err = reply.WriteTo(conn)
-		if err != nil {
+		if _, err = reply.WriteTo(conn); err != nil {
 			return err
 		}
 	}

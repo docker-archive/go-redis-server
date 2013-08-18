@@ -15,11 +15,14 @@ func parseRequest(r *bufio.Reader) (*Request, error) {
 	if err != nil {
 		return nil, err
 	}
-
 	// note that this line also protects us from negative integers
 	var argsCount int
 	if _, err := fmt.Sscanf(line, "*%d\r", &argsCount); err != nil {
-		return nil, malformed("*<numberOfArguments>", line)
+		if req, err := readInline(line); err != nil {
+			return nil, malformed("*<numberOfArguments>", line)
+		} else {
+			return req, err
+		}
 	}
 
 	// All next lines are pairs of:
@@ -39,6 +42,18 @@ func parseRequest(r *bufio.Reader) (*Request, error) {
 	}
 
 	return &Request{name: strings.ToLower(string(firstArg)), args: args}, nil
+}
+
+func readInline(buf string) (*Request, error) {
+	tab := strings.Split(strings.Trim(buf, "\r\n"), " ")
+
+	var args [][]byte
+	if len(tab) > 1 {
+		for _, arg := range tab[1:] {
+			args = append(args, []byte(arg))
+		}
+	}
+	return &Request{name: strings.ToLower(string(tab[0])), args: args}, nil
 }
 
 func readArgument(r *bufio.Reader) ([]byte, error) {
@@ -77,8 +92,8 @@ func readArgument(r *bufio.Reader) ([]byte, error) {
 }
 
 func malformed(expected string, got string) error {
-	return fmt.Errorf(
-		"Mailformed request:'%s does not match %s\\r\\n'", got, expected)
+	Debugf("Mailformed request:'%s does not match %s\\r\\n'", got, expected)
+	return fmt.Errorf("Mailformed request:'%s does not match %s\\r\\n'", got, expected)
 }
 
 func malformedLength(expected int, got int) error {

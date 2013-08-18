@@ -57,11 +57,13 @@ func (h *DefaultHandler) BRPOP(keys ...[]byte) ([][]byte, error) {
 }
 
 func (h *DefaultHandler) HGET(key, subkey string) ([]byte, error) {
-	if h.hvalues != nil {
-		if v, exists := h.hvalues[key]; exists {
-			if v, exists := v[subkey]; exists {
-				return v, nil
-			}
+	if h.hvalues == nil {
+		return nil, nil
+	}
+
+	if v, exists := h.hvalues[key]; exists {
+		if v, exists := v[subkey]; exists {
+			return v, nil
 		}
 	}
 	return nil, nil
@@ -88,6 +90,13 @@ func (h *DefaultHandler) HSET(key, subkey string, value []byte) (int, error) {
 	return ret, nil
 }
 
+func (h *DefaultHandler) HGETALL(key string) (HashValue, error) {
+	if h.hvalues == nil {
+		return nil, nil
+	}
+	return h.hvalues[key], nil
+}
+
 func (h *DefaultHandler) GET(key string) ([]byte, error) {
 	if h.values == nil {
 		return nil, nil
@@ -103,7 +112,30 @@ func (h *DefaultHandler) SET(key string, value []byte) error {
 	return nil
 }
 
+func (h *DefaultHandler) DEL(keys ...[]byte) (int, error) {
+	count := 0
+	for _, k := range keys {
+		key := string(k)
+		if _, exists := h.values[key]; exists {
+			delete(h.values, key)
+			count++
+		}
+		if _, exists := h.hvalues[key]; exists {
+			delete(h.hvalues, key)
+			count++
+		}
+	}
+	return count, nil
+}
+
+func (h *DefaultHandler) PING() (*StatusReply, error) {
+	return &StatusReply{code: "PONG"}, nil
+}
+
 func (h *DefaultHandler) SUBSCRIBE(channels ...[]byte) (*MultiChannelWriter, error) {
+	if h.sub == nil {
+		h.sub = make(HashSub)
+	}
 	ret := &MultiChannelWriter{Chans: make([]*ChannelWriter, 0, len(channels))}
 	for _, key := range channels {
 		Debugf("SUBSCRIBE on %s\n", key)
@@ -126,6 +158,9 @@ func (h *DefaultHandler) SUBSCRIBE(channels ...[]byte) (*MultiChannelWriter, err
 }
 
 func (h *DefaultHandler) PUBLISH(key string, value []byte) (int, error) {
+	if h.sub == nil {
+		return 0, nil
+	}
 	//	Debugf("Publishing %s on %s\n", value, key)
 	v, exists := h.sub[key]
 	if !exists {

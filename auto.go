@@ -103,7 +103,16 @@ func handlerFn(autoHandler interface{}, method *reflect.Method, checkers []Check
 	}, nil
 }
 
+func hashValueReply(v HashValue) (*MultiBulkReply, error) {
+	m := make(map[string]interface{})
+	for k, v := range v {
+		m[k] = v
+	}
+	return MultiBulkFromMap(m), nil
+}
+
 func createReply(val interface{}, c chan struct{}, monitorChans *[]chan string) (ReplyWriter, error) {
+	Debugf("CREATE REPLY: %T", val)
 	switch v := val.(type) {
 	case []interface{}:
 		return &MultiBulkReply{values: v}, nil
@@ -120,19 +129,16 @@ func createReply(val interface{}, c chan struct{}, monitorChans *[]chan string) 
 		return &MultiBulkReply{values: m}, nil
 	case []byte:
 		return &BulkReply{value: v}, nil
+	case HashValue:
+		return hashValueReply(v)
 	case map[string][]byte:
-		if v, ok := val.(map[string]interface{}); ok {
-			return MultiBulkFromMap(v), nil
-		}
-		m := make(map[string]interface{})
-		for k, v := range v {
-			m[k] = v
-		}
-		return MultiBulkFromMap(m), nil
+		return hashValueReply(v)
 	case map[string]interface{}:
 		return MultiBulkFromMap(v), nil
 	case int:
 		return &IntegerReply{number: v}, nil
+	case *StatusReply:
+		return v, nil
 	case *MonitorReply:
 		c := make(chan string)
 		*monitorChans = append(*monitorChans, c)
@@ -148,7 +154,7 @@ func createReply(val interface{}, c chan struct{}, monitorChans *[]chan string) 
 		}
 		return v, nil
 	default:
-		return nil, fmt.Errorf("Unsupported type: %s (%s)", v, reflect.TypeOf(v).Name())
+		return nil, fmt.Errorf("Unsupported type: %s (%T)", v, v)
 	}
 }
 
