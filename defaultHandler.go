@@ -9,7 +9,7 @@ type (
 	HashValue   map[string][]byte
 	HashHash    map[string]HashValue
 	HashSub     map[string][]*ChannelWriter
-	HashBrStack map[string]*brStack
+	HashBrStack map[string]*BrStack
 )
 
 type DefaultHandler struct {
@@ -27,7 +27,7 @@ func (h *DefaultHandler) RPUSH(key string, values ...[]byte) (int, error) {
 		h.brstack[key] = NewBrStack([]byte(key))
 	}
 	for _, value := range values {
-		h.brstack[key].push(value)
+		h.brstack[key].Push(value)
 	}
 	return len(h.brstack[key].stack), nil
 }
@@ -45,15 +45,15 @@ func (h *DefaultHandler) BRPOP(keys ...[]byte) ([][]byte, error) {
 		}
 		selectCases = append(selectCases, reflect.SelectCase{
 			Dir:  reflect.SelectRecv,
-			Chan: reflect.ValueOf(h.brstack[key].c),
+			Chan: reflect.ValueOf(h.brstack[key].Chan),
 		})
 	}
 	_, recv, _ := reflect.Select(selectCases)
-	s, ok := recv.Interface().(*brStack)
+	s, ok := recv.Interface().(*BrStack)
 	if !ok {
 		return nil, fmt.Errorf("Impossible to retrieve data. Wrong type.")
 	}
-	return [][]byte{s.key, s.pop()}, nil
+	return [][]byte{s.Key, s.Pop()}, nil
 }
 
 func (h *DefaultHandler) HGET(key, subkey string) ([]byte, error) {

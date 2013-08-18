@@ -4,14 +4,14 @@ import (
 	"sync"
 )
 
-type brStack struct {
+type BrStack struct {
 	sync.Mutex
 	stack [][]byte
-	c     chan *brStack
-	key   []byte
+	Chan  chan *BrStack
+	Key   []byte
 }
 
-func (s *brStack) pop() []byte {
+func (s *BrStack) Pop() []byte {
 	s.Lock()
 	defer s.Unlock()
 
@@ -28,7 +28,7 @@ func (s *brStack) pop() []byte {
 	return ret
 }
 
-func (s *brStack) push(val []byte) {
+func (s *BrStack) Push(val []byte) {
 	s.Lock()
 	defer s.Unlock()
 
@@ -38,16 +38,22 @@ func (s *brStack) push(val []byte) {
 
 	s.stack = append(s.stack, val)
 	go func() {
-		if s.c != nil {
-			s.c <- s
+		if s.Chan != nil {
+			s.Chan <- s
 		}
 	}()
 }
 
-func NewBrStack(key []byte) *brStack {
-	return &brStack{
+func (s *BrStack) Len() int {
+	s.Lock()
+	defer s.Unlock()
+	return len(s.stack)
+}
+
+func NewBrStack(key []byte) *BrStack {
+	return &BrStack{
 		stack: [][]byte{},
-		c:     make(chan *brStack),
-		key:   key,
+		Chan:  make(chan *BrStack),
+		Key:   key,
 	}
 }
