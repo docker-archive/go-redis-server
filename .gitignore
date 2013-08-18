@@ -1,2 +1,4 @@
 *.test
-example
+example/example
+example/simple/simple
+redis.conf
