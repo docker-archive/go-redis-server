@@ -5,7 +5,6 @@
 package redis
 
 import (
-	"bufio"
 	"fmt"
 	"io"
 	"io/ioutil"
@@ -82,7 +81,9 @@ func Serve(conn net.Conn, handler *Handler, monitorChan *[]chan string) (err err
 		defer close(c)
 		defer Debugf("Client disconnected")
 		// FIXME: move conn within the request.
-		io.Copy(ioutil.Discard, conn)
+		if false {
+			io.Copy(ioutil.Discard, conn)
+		}
 	}()
 
 	var clientAddr string
@@ -98,13 +99,12 @@ func Serve(conn net.Conn, handler *Handler, monitorChan *[]chan string) (err err
 		clientAddr = co.RemoteAddr().String()
 	}
 
-	r := bufio.NewReader(conn)
 	for {
-		request, err := parseRequest(r)
+		request, err := parseRequest(conn)
 		if err != nil {
 			return err
 		}
-		request.clientAddr = clientAddr
+		request.Host = clientAddr
 
 		reply, err := Apply(handler, request, c, monitorChan)
 		if err != nil {

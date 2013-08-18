@@ -5,10 +5,12 @@ import (
 	"fmt"
 	"io"
 	"io/ioutil"
+	"net"
 	"strings"
 )
 
-func parseRequest(r *bufio.Reader) (*Request, error) {
+func parseRequest(conn net.Conn) (*Request, error) {
+	r := bufio.NewReader(conn)
 	// first line of redis request should be:
 	// *<number of arguments>CRLF
 	line, err := r.ReadString('\n')
@@ -17,43 +19,50 @@ func parseRequest(r *bufio.Reader) (*Request, error) {
 	}
 	// note that this line also protects us from negative integers
 	var argsCount int
-	if _, err := fmt.Sscanf(line, "*%d\r", &argsCount); err != nil {
-		if req, err := readInline(line); err != nil {
+
+	// Multiline request:
+	if line[0] == '*' {
+		if _, err := fmt.Sscanf(line, "*%d\r", &argsCount); err != nil {
 			return nil, malformed("*<numberOfArguments>", line)
-		} else {
-			return req, err
 		}
-	}
-
-	// All next lines are pairs of:
-	//$<number of bytes of argument 1> CR LF
-	//<argument data> CR LF
-	// first argument is a command name, so just convert
-	firstArg, err := readArgument(r)
-	if err != nil {
-		return nil, err
-	}
-
-	args := make([][]byte, argsCount-1)
-	for i := 0; i < argsCount-1; i += 1 {
-		if args[i], err = readArgument(r); err != nil {
+		// All next lines are pairs of:
+		//$<number of bytes of argument 1> CR LF
+		//<argument data> CR LF
+		// first argument is a command name, so just convert
+		firstArg, err := readArgument(r)
+		if err != nil {
 			return nil, err
 		}
+
+		args := make([][]byte, argsCount-1)
+		for i := 0; i < argsCount-1; i += 1 {
+			if args[i], err = readArgument(r); err != nil {
+				return nil, err
+			}
+		}
+
+		return &Request{
+			Name: strings.ToLower(string(firstArg)),
+			Args: args,
+			Body: conn,
+		}, nil
 	}
 
-	return &Request{name: strings.ToLower(string(firstArg)), args: args}, nil
-}
-
-func readInline(buf string) (*Request, error) {
-	tab := strings.Split(strings.Trim(buf, "\r\n"), " ")
+	// Inline request:
+	fields := strings.Split(strings.Trim(line, "\r\n"), " ")
 
 	var args [][]byte
-	if len(tab) > 1 {
-		for _, arg := range tab[1:] {
+	if len(fields) > 1 {
+		for _, arg := range fields[1:] {
 			args = append(args, []byte(arg))
 		}
 	}
-	return &Request{name: strings.ToLower(string(tab[0])), args: args}, nil
+	return &Request{
+		Name: strings.ToLower(string(fields[0])),
+		Args: args,
+		Body: conn,
+	}, nil
+
 }
 
 func readArgument(r *bufio.Reader) ([]byte, error) {

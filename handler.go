@@ -15,7 +15,7 @@ func Apply(h *Handler, r *Request, c chan struct{}, monitorChan *[]chan string) 
 		Debugf("The method map is uninitialized")
 		return ErrMethodNotSupported, nil
 	}
-	fn, exists := h.methods[strings.ToLower(r.name)]
+	fn, exists := h.methods[strings.ToLower(r.Name)]
 	if !exists {
 		return ErrMethodNotSupported, nil
 	}

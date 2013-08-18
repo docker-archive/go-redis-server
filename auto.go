@@ -62,7 +62,7 @@ func createHandlerFn(autoHandler interface{}, method *reflect.Method) (HandlerFn
 func handlerFn(autoHandler interface{}, method *reflect.Method, checkers []CheckerFn) (HandlerFn, error) {
 	return func(request *Request, c chan struct{}, monitorChans *[]chan string) (ReplyWriter, error) {
 		input := []reflect.Value{reflect.ValueOf(autoHandler)}
-		if method.Func.Type().NumIn() < len(request.args) && !method.Func.Type().IsVariadic() {
+		if method.Func.Type().NumIn() < len(request.Args) && !method.Func.Type().IsVariadic() {
 			return ErrTooMuchArgs, nil
 		}
 		for _, checker := range checkers {
@@ -72,7 +72,11 @@ func handlerFn(autoHandler interface{}, method *reflect.Method, checkers []Check
 			}
 			input = append(input, value)
 		}
-		monitorString := fmt.Sprintf("%.6f [0 %s] \"%s\" \"%s\"", float64(time.Now().UTC().UnixNano())/1e9, request.clientAddr, request.name, bytes.Join(request.args, []byte{'"', ' ', '"'}))
+		monitorString := fmt.Sprintf("%.6f [0 %s] \"%s\" \"%s\"",
+			float64(time.Now().UTC().UnixNano())/1e9,
+			request.Host,
+			request.Name,
+			bytes.Join(request.Args, []byte{'"', ' ', '"'}))
 		for _, c := range *monitorChans {
 			select {
 			case c <- monitorString:
@@ -199,7 +203,7 @@ func byteChecker(index int) CheckerFn {
 		if err != nil {
 			return reflect.ValueOf([]byte{}), err
 		}
-		return reflect.ValueOf(request.args[index]), nil
+		return reflect.ValueOf(request.Args[index]), nil
 	}
 }
 
@@ -208,7 +212,7 @@ func byteSliceChecker(index int) CheckerFn {
 		if !request.HasArgument(index) {
 			return reflect.ValueOf([][]byte{}), nil
 		} else {
-			return reflect.ValueOf(request.args[index:]), nil
+			return reflect.ValueOf(request.Args[index:]), nil
 		}
 	}
 }

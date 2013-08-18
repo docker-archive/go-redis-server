@@ -1,17 +1,19 @@
 package redis
 
 import (
+	"io"
 	"strconv"
 )
 
 type Request struct {
-	name       string
-	args       [][]byte
-	clientAddr string
+	Name string
+	Args [][]byte
+	Host string
+	Body io.ReadCloser
 }
 
 func (r *Request) HasArgument(index int) bool {
-	return len(r.args) >= index+1
+	return len(r.Args) >= index+1
 }
 
 func (r *Request) ExpectArgument(index int) ReplyWriter {
@@ -25,14 +27,14 @@ func (r *Request) GetString(index int) (string, ReplyWriter) {
 	if reply := r.ExpectArgument(index); reply != nil {
 		return "", reply
 	}
-	return string(r.args[index]), nil
+	return string(r.Args[index]), nil
 }
 
 func (r *Request) GetInteger(index int) (int, ReplyWriter) {
 	if reply := r.ExpectArgument(index); reply != nil {
 		return -1, reply
 	}
-	i, err := strconv.Atoi(string(r.args[index]))
+	i, err := strconv.Atoi(string(r.Args[index]))
 	if err != nil {
 		return -1, ErrExpectInteger
 	}
@@ -51,7 +53,7 @@ func (r *Request) GetPositiveInteger(index int) (int, ReplyWriter) {
 }
 
 func (r *Request) GetMap(index int) (map[string][]byte, ReplyWriter) {
-	count := len(r.args) - index
+	count := len(r.Args) - index
 	if count <= 0 {
 		return nil, ErrExpectMorePair
 	}
@@ -59,12 +61,12 @@ func (r *Request) GetMap(index int) (map[string][]byte, ReplyWriter) {
 		return nil, ErrExpectEvenPair
 	}
 	values := make(map[string][]byte)
-	for i := index; i < len(r.args); i += 2 {
+	for i := index; i < len(r.Args); i += 2 {
 		key, reply := r.GetString(i)
 		if reply != nil {
 			return nil, reply
 		}
-		values[key] = r.args[i+1]
+		values[key] = r.Args[i+1]
 	}
 	return values, nil
 }
