@@ -22,7 +22,7 @@ func TestCustomHandler(t *testing.T) {
 	h.Register("GET", func(r *Request, c chan struct{}, monitorChan *[]chan string) (ReplyWriter, error) {
 		return &BulkReply{value: []byte("42")}, nil
 	})
-	reply, err := ApplyString(h, &Request{name: "gEt"}, nil, nil)
+	reply, err := ApplyString(h, &Request{Name: "gEt"}, nil, nil)
 	if err != nil {
 		t.Fatalf("Unexpected error: %s", err)
 	}

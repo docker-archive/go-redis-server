@@ -6,14 +6,14 @@ import (
 )
 
 func TestRequestExpectArgument(t *testing.T) {
-	r := &Request{name: "Hi", args: [][]byte{}}
+	r := &Request{Name: "Hi", Args: [][]byte{}}
 	for i := 0; i < 10; i += 1 {
 		reply := r.ExpectArgument(i)
 		if reply == nil {
 			t.Fatalf("Expected error reply, got nil")
 		}
 	}
-	r = &Request{name: "Hi", args: [][]byte{{'h', 'i'}}}
+	r = &Request{Name: "Hi", Args: [][]byte{{'h', 'i'}}}
 	reply := r.ExpectArgument(0)
 	if reply != nil {
 		t.Fatalf("Expected nil reply, got %s", reply)
@@ -27,7 +27,7 @@ func TestRequestExpectArgument(t *testing.T) {
 
 func TestRequestGetString(t *testing.T) {
 	s := "Hello, World!"
-	r := &Request{name: "Hi", args: [][]byte{[]byte(s)}}
+	r := &Request{Name: "Hi", Args: [][]byte{[]byte(s)}}
 	val, reply := r.GetString(0)
 	if reply != nil {
 		t.Fatalf("Expected nil reply, got %s", reply)
@@ -43,8 +43,8 @@ func TestRequestGetString(t *testing.T) {
 
 func TestRequestGetInteger(t *testing.T) {
 	invalid := []*Request{
-		{name: "Hi", args: [][]byte{}},
-		{name: "Hi", args: [][]byte{{'h', 'i'}}},
+		{Name: "Hi", Args: [][]byte{}},
+		{Name: "Hi", Args: [][]byte{{'h', 'i'}}},
 	}
 	for _, request := range invalid {
 		_, reply := request.GetInteger(0)
@@ -58,9 +58,9 @@ func TestRequestGetInteger(t *testing.T) {
 		index   int
 		number  int
 	}{
-		{&Request{name: "Hi", args: [][]byte{{'1'}}}, 0, 1},
-		{&Request{name: "Hi", args: [][]byte{{'1'}, []byte("42")}}, 1, 42},
-		{&Request{name: "Hi", args: [][]byte{{'1'}, []byte("-1043")}}, 1, -1043},
+		{&Request{Name: "Hi", Args: [][]byte{{'1'}}}, 0, 1},
+		{&Request{Name: "Hi", Args: [][]byte{{'1'}, []byte("42")}}, 1, 42},
+		{&Request{Name: "Hi", Args: [][]byte{{'1'}, []byte("-1043")}}, 1, -1043},
 	}
 	for _, v := range valid {
 		number, reply := v.request.GetInteger(v.index)
@@ -88,10 +88,10 @@ func TestRequestGetMap(t *testing.T) {
 		request *Request
 		index   int
 	}{
-		{&Request{name: "Hi", args: [][]byte{}}, 0},
-		{&Request{name: "Hi", args: [][]byte{}}, 100},
-		{&Request{name: "Hi", args: [][]byte{{'h', 'i'}}}, 0},
-		{&Request{name: "Hi", args: [][]byte{{'h', 'i'}, {'h', 'i'}, {'h', 'i'}}}, 0},
+		{&Request{Name: "Hi", Args: [][]byte{}}, 0},
+		{&Request{Name: "Hi", Args: [][]byte{}}, 100},
+		{&Request{Name: "Hi", Args: [][]byte{{'h', 'i'}}}, 0},
+		{&Request{Name: "Hi", Args: [][]byte{{'h', 'i'}, {'h', 'i'}, {'h', 'i'}}}, 0},
 	}
 	for _, v := range invalid {
 		_, reply := v.request.GetMap(v.index)
@@ -107,8 +107,8 @@ func TestRequestGetMap(t *testing.T) {
 	}{
 		{
 			request: &Request{
-				name: "Hi",
-				args: [][]byte{
+				Name: "Hi",
+				Args: [][]byte{
 					{'h', 'i'},
 					{'y', 'o'},
 				},
@@ -118,8 +118,8 @@ func TestRequestGetMap(t *testing.T) {
 		},
 		{
 			request: &Request{
-				name: "Hi",
-				args: [][]byte{
+				Name: "Hi",
+				Args: [][]byte{
 					[]byte("hi"),
 					[]byte("yo"),
 					[]byte("key"),

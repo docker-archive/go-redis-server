@@ -135,15 +135,15 @@ func TestAutoHandler(t *testing.T) {
 	}{
 		{
 			request: &Request{
-				name: "GET",
-				args: [][]byte{[]byte("key")},
+				Name: "GET",
+				Args: [][]byte{[]byte("key")},
 			},
 			expected: []string{"$-1\r\n"},
 		},
 		{
 			request: &Request{
-				name: "SET",
-				args: [][]byte{
+				Name: "SET",
+				Args: [][]byte{
 					[]byte("key"),
 					[]byte("value"),
 				},
@@ -152,15 +152,15 @@ func TestAutoHandler(t *testing.T) {
 		},
 		{
 			request: &Request{
-				name: "GET",
-				args: [][]byte{[]byte("key")},
+				Name: "GET",
+				Args: [][]byte{[]byte("key")},
 			},
 			expected: []string{"$5\r\nvalue\r\n"},
 		},
 		{
 			request: &Request{
-				name: "HGET",
-				args: [][]byte{
+				Name: "HGET",
+				Args: [][]byte{
 					[]byte("hkey"),
 					[]byte("prop1"),
 				},
@@ -169,8 +169,8 @@ func TestAutoHandler(t *testing.T) {
 		},
 		{
 			request: &Request{
-				name: "HMSET",
-				args: [][]byte{
+				Name: "HMSET",
+				Args: [][]byte{
 					[]byte("hkey"),
 					[]byte("prop1"),
 					[]byte("value1"),
@@ -182,8 +182,8 @@ func TestAutoHandler(t *testing.T) {
 		},
 		{
 			request: &Request{
-				name: "HGET",
-				args: [][]byte{
+				Name: "HGET",
+				Args: [][]byte{
 					[]byte("hkey"),
 					[]byte("prop1"),
 				},
@@ -192,8 +192,8 @@ func TestAutoHandler(t *testing.T) {
 		},
 		{
 			request: &Request{
-				name: "HGET",
-				args: [][]byte{
+				Name: "HGET",
+				Args: [][]byte{
 					[]byte("hkey"),
 					[]byte("prop2"),
 				},
@@ -202,8 +202,8 @@ func TestAutoHandler(t *testing.T) {
 		},
 		{
 			request: &Request{
-				name: "HGETALL",
-				args: [][]byte{
+				Name: "HGETALL",
+				Args: [][]byte{
 					[]byte("hkey"),
 				},
 			},
@@ -214,8 +214,8 @@ func TestAutoHandler(t *testing.T) {
 		},
 		{
 			request: &Request{
-				name: "HSET",
-				args: [][]byte{
+				Name: "HSET",
+				Args: [][]byte{
 					[]byte("hkey"),
 					[]byte("prop1"),
 					[]byte("newvalue"),
@@ -227,8 +227,8 @@ func TestAutoHandler(t *testing.T) {
 		},
 		{
 			request: &Request{
-				name: "HGET",
-				args: [][]byte{
+				Name: "HGET",
+				Args: [][]byte{
 					[]byte("hkey"),
 					[]byte("prop1"),
 				},
@@ -237,8 +237,8 @@ func TestAutoHandler(t *testing.T) {
 		},
 		{
 			request: &Request{
-				name: "DEL",
-				args: [][]byte{
+				Name: "DEL",
+				Args: [][]byte{
 					[]byte("key"),
 					[]byte("hkey"),
 				},
@@ -247,8 +247,8 @@ func TestAutoHandler(t *testing.T) {
 		},
 		{
 			request: &Request{
-				name: "BRPOP",
-				args: [][]byte{
+				Name: "BRPOP",
+				Args: [][]byte{
 					[]byte("bkey"),
 				},
 			},
@@ -258,8 +258,8 @@ func TestAutoHandler(t *testing.T) {
 		},
 		{
 			request: &Request{
-				name: "BRPOP",
-				args: [][]byte{
+				Name: "BRPOP",
+				Args: [][]byte{
 					[]byte("key1"),
 					[]byte("key2"),
 				},
@@ -270,8 +270,8 @@ func TestAutoHandler(t *testing.T) {
 		},
 		{
 			request: &Request{
-				name: "SUBSCRIBE",
-				args: [][]byte{
+				Name: "SUBSCRIBE",
+				Args: [][]byte{
 					[]byte("foo"),
 				},
 			},
