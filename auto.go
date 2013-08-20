@@ -28,7 +28,7 @@ func NewAutoHandler(autoHandler interface{}) (*Handler, error) {
 	rh := reflect.TypeOf(autoHandler)
 	for i := 0; i < rh.NumMethod(); i++ {
 		method := rh.Method(i)
-		handlerFn, err := createHandlerFn(autoHandler, &method)
+		handlerFn, err := createHandlerFn(autoHandler, &method.Func)
 		if err != nil {
 			return nil, err
 		}
@@ -37,10 +37,10 @@ func NewAutoHandler(autoHandler interface{}) (*Handler, error) {
 	return handler, nil
 }
 
-func createHandlerFn(autoHandler interface{}, method *reflect.Method) (HandlerFn, error) {
+func createHandlerFn(autoHandler interface{}, f *reflect.Value) (HandlerFn, error) {
 	errorType := reflect.TypeOf(createHandlerFn).Out(1)
-	mtype := method.Func.Type()
-	checkers, err := createCheckers(method)
+	mtype := f.Type()
+	checkers, err := createCheckers(autoHandler, f)
 	if err != nil {
 		return nil, err
 	}
@@ -56,10 +56,10 @@ func createHandlerFn(autoHandler interface{}, method *reflect.Method) (HandlerFn
 		return nil, fmt.Errorf("Last return value must be an error (not %s)", t)
 	}
 
-	return handlerFn(autoHandler, method, checkers)
+	return handlerFn(autoHandler, f, checkers)
 }
 
-func handlerFn(autoHandler interface{}, method *reflect.Method, checkers []CheckerFn) (HandlerFn, error) {
+func handlerFn(autoHandler interface{}, f *reflect.Value, checkers []CheckerFn) (HandlerFn, error) {
 	return func(request *Request, c chan struct{}, monitorChans *[]chan string) (ReplyWriter, error) {
 		input := []reflect.Value{reflect.ValueOf(autoHandler)}
 
@@ -70,24 +70,43 @@ func handlerFn(autoHandler interface{}, method *reflect.Method, checkers []Check
 			}
 			input = append(input, value)
 		}
-		monitorString := fmt.Sprintf("%.6f [0 %s] \"%s\" \"%s\"",
-			float64(time.Now().UTC().UnixNano())/1e9,
-			request.Host,
-			request.Name,
-			bytes.Join(request.Args, []byte{'"', ' ', '"'}))
+		var monitorString string
+		if len(request.Args) > 0 {
+			monitorString = fmt.Sprintf("%.6f [0 %s] \"%s\" \"%s\"",
+				float64(time.Now().UTC().UnixNano())/1e9,
+				request.Host,
+				request.Name,
+				bytes.Join(request.Args, []byte{'"', ' ', '"'}))
+		} else {
+			monitorString = fmt.Sprintf("%.6f [0 %s] \"%s\"",
+				float64(time.Now().UTC().UnixNano())/1e9,
+				request.Host,
+				request.Name)
+		}
 		for _, c := range *monitorChans {
 			select {
 			case c <- monitorString:
 			default:
 			}
 		}
-		Debugf("Monitors: %d\n", len(*monitorChans))
-		Debugf("%s\n", monitorString)
+		Debugf("%s (connected monitors: %d)\n", monitorString, len(*monitorChans))
+
 		var result []reflect.Value
-		if method.Func.Type().IsVariadic() {
-			result = method.Func.CallSlice(input)
+
+		// If we don't have any input, it means we are dealing with a function.
+		// Then remove the first parameter (object instance)
+		if f.Type().NumIn() == 0 {
+			input = []reflect.Value{}
+		} else if f.Type().In(0).AssignableTo(reflect.TypeOf(autoHandler)) == false {
+			// If we have at least one input, we check if the first one is an instance of our object
+			// If it is, then remove it from the input list.
+			input = input[1:]
+		}
+
+		if f.Type().IsVariadic() {
+			result = f.CallSlice(input)
 		} else {
-			result = method.Func.Call(input)
+			result = f.Call(input)
 		}
 
 		var ret interface{}
@@ -160,26 +179,34 @@ func createReply(val interface{}, c chan struct{}, monitorChans *[]chan string) 
 	}
 }
 
-func createCheckers(method *reflect.Method) ([]CheckerFn, error) {
+func createCheckers(autoHandler interface{}, f *reflect.Value) ([]CheckerFn, error) {
 	checkers := []CheckerFn{}
-	mtype := method.Func.Type()
-	for i := 1; i < mtype.NumIn(); i += 1 {
+	mtype := f.Type()
+
+	start := 0
+	// If we are dealing with a method, start at 1 (first being the instance)
+	// Otherwise, start at 0.
+	if mtype.NumIn() > 0 && mtype.In(0).AssignableTo(reflect.TypeOf(autoHandler)) {
+		start = 1
+	}
+
+	for i := start; i < mtype.NumIn(); i += 1 {
 		switch mtype.In(i) {
 		case reflect.TypeOf(""):
-			checkers = append(checkers, stringChecker(i-1))
+			checkers = append(checkers, stringChecker(i-start))
 		case reflect.TypeOf([]byte{}):
-			checkers = append(checkers, byteChecker(i-1))
+			checkers = append(checkers, byteChecker(i-start))
 		case reflect.TypeOf([][]byte{}):
-			checkers = append(checkers, byteSliceChecker(i-1))
+			checkers = append(checkers, byteSliceChecker(i-start))
 		case reflect.TypeOf(map[string][]byte{}):
 			if i != mtype.NumIn()-1 {
 				return nil, errors.New("Map should be the last argument")
 			}
-			checkers = append(checkers, mapChecker(i-1))
+			checkers = append(checkers, mapChecker(i-start))
 		case reflect.TypeOf(1):
-			checkers = append(checkers, intChecker(i-1))
+			checkers = append(checkers, intChecker(i-start))
 		default:
-			return nil, fmt.Errorf("Argument %d: wrong type %s (%s)", i, mtype.In(i), method.Name)
+			return nil, fmt.Errorf("Argument %d: wrong type %s (%s)", i, mtype.In(i), mtype.Name())
 		}
 	}
 	return checkers, nil

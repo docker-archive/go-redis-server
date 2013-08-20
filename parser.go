@@ -5,11 +5,10 @@ import (
 	"fmt"
 	"io"
 	"io/ioutil"
-	"net"
 	"strings"
 )
 
-func parseRequest(conn net.Conn) (*Request, error) {
+func parseRequest(conn io.ReadCloser) (*Request, error) {
 	r := bufio.NewReader(conn)
 	// first line of redis request should be:
 	// *<number of arguments>CRLF
