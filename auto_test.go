@@ -125,7 +125,7 @@ func (h *TestHandler) DEL(key string, keys ...[]byte) (int, error) {
 }
 
 func TestAutoHandler(t *testing.T) {
-	h, err := NewAutoHandler(NewHandler())
+	srv, err := NewServer(DefaultConfig().Handler(NewHandler()))
 	if err != nil {
 		t.Fatalf("Unexpected error: %s", err)
 	}
@@ -282,7 +282,7 @@ func TestAutoHandler(t *testing.T) {
 	}
 	for _, v := range expected {
 		c := make(chan struct{})
-		reply, err := ApplyString(h, v.request, c, &[]chan string{})
+		reply, err := srv.ApplyString(v.request)
 		if err != nil {
 			t.Fatalf("Unexpected error: %s", err)
 		}

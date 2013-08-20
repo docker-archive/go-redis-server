@@ -6,10 +6,11 @@ import (
 )
 
 type Request struct {
-	Name string
-	Args [][]byte
-	Host string
-	Body io.ReadCloser
+	Name       string
+	Args       [][]byte
+	Host       string
+	ClientChan chan struct{}
+	Body       io.ReadCloser
 }
 
 func (r *Request) HasArgument(index int) bool {
