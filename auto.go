@@ -62,9 +62,7 @@ func createHandlerFn(autoHandler interface{}, method *reflect.Method) (HandlerFn
 func handlerFn(autoHandler interface{}, method *reflect.Method, checkers []CheckerFn) (HandlerFn, error) {
 	return func(request *Request, c chan struct{}, monitorChans *[]chan string) (ReplyWriter, error) {
 		input := []reflect.Value{reflect.ValueOf(autoHandler)}
-		if method.Func.Type().NumIn() < len(request.Args) && !method.Func.Type().IsVariadic() {
-			return ErrTooMuchArgs, nil
-		}
+
 		for _, checker := range checkers {
 			value, reply := checker(request)
 			if reply != nil {
