@@ -1,6 +1,7 @@
 package redis
 
 import (
+	"reflect"
 	"strings"
 )
 
@@ -8,6 +9,16 @@ type HandlerFn func(r *Request, c chan struct{}, monitorChan *[]chan string) (Re
 
 type Handler struct {
 	methods map[string]HandlerFn
+}
+
+func (h *Handler) RegisterFct(key string, f interface{}) error {
+	v := reflect.ValueOf(f)
+	handlerFn, err := createHandlerFn(f, &v)
+	if err != nil {
+		return err
+	}
+	h.Register(key, handlerFn)
+	return nil
 }
 
 func Apply(h *Handler, r *Request, c chan struct{}, monitorChan *[]chan string) (ReplyWriter, error) {
