@@ -3,6 +3,7 @@ package redis
 import (
 	"fmt"
 	"reflect"
+	"strconv"
 )
 
 type (
@@ -12,16 +13,37 @@ type (
 	HashBrStack map[string]*Stack
 )
 
-type DefaultHandler struct {
+type Database struct {
+	children map[int]*Database
+	parent   *Database
+
 	values  HashValue
 	hvalues HashHash
 	sub     HashSub
 	brstack HashBrStack
 }
 
+func NewDatabase(parent *Database) *Database {
+	db := &Database{
+		values:   make(HashValue),
+		sub:      make(HashSub),
+		brstack:  make(HashBrStack),
+		children: map[int]*Database{},
+		parent:   parent,
+	}
+	db.children[0] = db
+	return db
+}
+
+type DefaultHandler struct {
+	*Database
+	currentDb int
+	dbs       map[int]*Database
+}
+
 func (h *DefaultHandler) RPUSH(key string, values ...[]byte) (int, error) {
-	if h.brstack == nil {
-		h.brstack = make(HashBrStack)
+	if h.Database == nil {
+		h.Database = NewDatabase(nil)
 	}
 	if _, exists := h.brstack[key]; !exists {
 		h.brstack[key] = NewStack([]byte(key))
@@ -33,8 +55,8 @@ func (h *DefaultHandler) RPUSH(key string, values ...[]byte) (int, error) {
 }
 
 func (h *DefaultHandler) BRPOP(keys ...[]byte) ([][]byte, error) {
-	if h.brstack == nil {
-		h.brstack = make(HashBrStack)
+	if h.Database == nil {
+		h.Database = NewDatabase(nil)
 	}
 
 	selectCases := []reflect.SelectCase{}
@@ -57,8 +79,8 @@ func (h *DefaultHandler) BRPOP(keys ...[]byte) ([][]byte, error) {
 }
 
 func (h *DefaultHandler) LPUSH(key string, values ...[]byte) (int, error) {
-	if h.brstack == nil {
-		h.brstack = make(HashBrStack)
+	if h.Database == nil {
+		h.Database = NewDatabase(nil)
 	}
 	if _, exists := h.brstack[key]; !exists {
 		h.brstack[key] = NewStack([]byte(key))
@@ -70,8 +92,8 @@ func (h *DefaultHandler) LPUSH(key string, values ...[]byte) (int, error) {
 }
 
 func (h *DefaultHandler) BLPOP(keys ...[]byte) ([][]byte, error) {
-	if h.brstack == nil {
-		h.brstack = make(HashBrStack)
+	if h.Database == nil {
+		h.Database = NewDatabase(nil)
 	}
 
 	selectCases := []reflect.SelectCase{}
@@ -94,7 +116,7 @@ func (h *DefaultHandler) BLPOP(keys ...[]byte) ([][]byte, error) {
 }
 
 func (h *DefaultHandler) HGET(key, subkey string) ([]byte, error) {
-	if h.hvalues == nil {
+	if h.Database == nil || h.hvalues == nil {
 		return nil, nil
 	}
 
@@ -109,9 +131,8 @@ func (h *DefaultHandler) HGET(key, subkey string) ([]byte, error) {
 func (h *DefaultHandler) HSET(key, subkey string, value []byte) (int, error) {
 	ret := 0
 
-	if h.hvalues == nil {
-		h.hvalues = make(HashHash)
-		ret = 1
+	if h.Database == nil {
+		h.Database = NewDatabase(nil)
 	}
 	if _, exists := h.hvalues[key]; !exists {
 		h.hvalues[key] = make(HashValue)
@@ -128,28 +149,31 @@ func (h *DefaultHandler) HSET(key, subkey string, value []byte) (int, error) {
 }
 
 func (h *DefaultHandler) HGETALL(key string) (HashValue, error) {
-	if h.hvalues == nil {
+	if h.Database == nil || h.hvalues == nil {
 		return nil, nil
 	}
 	return h.hvalues[key], nil
 }
 
 func (h *DefaultHandler) GET(key string) ([]byte, error) {
-	if h.values == nil {
+	if h.Database == nil || h.values == nil {
 		return nil, nil
 	}
 	return h.values[key], nil
 }
 
 func (h *DefaultHandler) SET(key string, value []byte) error {
-	if h.values == nil {
-		h.values = make(HashValue)
+	if h.Database == nil {
+		h.Database = NewDatabase(nil)
 	}
 	h.values[key] = value
 	return nil
 }
 
 func (h *DefaultHandler) DEL(keys ...[]byte) (int, error) {
+	if h.Database == nil {
+		return 0, nil
+	}
 	count := 0
 	for _, k := range keys {
 		key := string(k)
@@ -170,8 +194,8 @@ func (h *DefaultHandler) PING() (*StatusReply, error) {
 }
 
 func (h *DefaultHandler) SUBSCRIBE(channels ...[]byte) (*MultiChannelWriter, error) {
-	if h.sub == nil {
-		h.sub = make(HashSub)
+	if h.Database == nil {
+		h.Database = NewDatabase(nil)
 	}
 	ret := &MultiChannelWriter{Chans: make([]*ChannelWriter, 0, len(channels))}
 	for _, key := range channels {
@@ -195,7 +219,7 @@ func (h *DefaultHandler) SUBSCRIBE(channels ...[]byte) (*MultiChannelWriter, err
 }
 
 func (h *DefaultHandler) PUBLISH(key string, value []byte) (int, error) {
-	if h.sub == nil {
+	if h.Database == nil || h.sub == nil {
 		return 0, nil
 	}
 	//	Debugf("Publishing %s on %s\n", value, key)
@@ -218,14 +242,34 @@ func (h *DefaultHandler) PUBLISH(key string, value []byte) (int, error) {
 	return i, nil
 }
 
+func (h *DefaultHandler) SELECT(key string) error {
+	if h.dbs == nil {
+		h.dbs = map[int]*Database{0: h.Database}
+	}
+	index, err := strconv.Atoi(key)
+	if err != nil {
+		return err
+	}
+	h.dbs[h.currentDb] = h.Database
+	h.currentDb = index
+	if _, exists := h.dbs[index]; !exists {
+		println("DB not exits, create ", index)
+		h.dbs[index] = NewDatabase(nil)
+	}
+	h.Database = h.dbs[index]
+	return nil
+}
+
 func (h *DefaultHandler) MONITOR() (*MonitorReply, error) {
 	return &MonitorReply{}, nil
 }
 
 func NewDefaultHandler() *DefaultHandler {
-	return &DefaultHandler{
-		values:  make(HashValue),
-		sub:     make(HashSub),
-		brstack: make(HashBrStack),
+	db := NewDatabase(nil)
+	ret := &DefaultHandler{
+		Database:  db,
+		currentDb: 0,
+		dbs:       map[int]*Database{0: db},
 	}
+	return ret
 }
