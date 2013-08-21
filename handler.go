@@ -5,46 +5,42 @@ import (
 	"strings"
 )
 
-type HandlerFn func(r *Request, c chan struct{}, monitorChan *[]chan string) (ReplyWriter, error)
+type HandlerFn func(r *Request) (ReplyWriter, error)
 
-type Handler struct {
-	methods map[string]HandlerFn
-}
-
-func (h *Handler) RegisterFct(key string, f interface{}) error {
+func (srv *Server) RegisterFct(key string, f interface{}) error {
 	v := reflect.ValueOf(f)
-	handlerFn, err := createHandlerFn(f, &v)
+	handlerFn, err := srv.createHandlerFn(f, &v)
 	if err != nil {
 		return err
 	}
-	h.Register(key, handlerFn)
+	srv.Register(key, handlerFn)
 	return nil
 }
 
-func Apply(h *Handler, r *Request, c chan struct{}, monitorChan *[]chan string) (ReplyWriter, error) {
-	if h == nil || h.methods == nil {
+func (srv *Server) Register(name string, fn HandlerFn) {
+	if srv.methods == nil {
+		srv.methods = make(map[string]HandlerFn)
+	}
+	Debugf("REGISTER: %s", strings.ToLower(name))
+	srv.methods[strings.ToLower(name)] = fn
+}
+
+func (srv *Server) Apply(r *Request) (ReplyWriter, error) {
+	if srv == nil || srv.methods == nil {
 		Debugf("The method map is uninitialized")
 		return ErrMethodNotSupported, nil
 	}
-	fn, exists := h.methods[strings.ToLower(r.Name)]
+	fn, exists := srv.methods[strings.ToLower(r.Name)]
 	if !exists {
 		return ErrMethodNotSupported, nil
 	}
-	return fn(r, c, monitorChan)
+	return fn(r)
 }
 
-func ApplyString(h *Handler, r *Request, c chan struct{}, monitorChan *[]chan string) (string, error) {
-	reply, err := Apply(h, r, c, monitorChan)
+func (srv *Server) ApplyString(r *Request) (string, error) {
+	reply, err := srv.Apply(r)
 	if err != nil {
 		return "", err
 	}
 	return ReplyToString(reply)
-}
-
-func (h *Handler) Register(name string, fn HandlerFn) {
-	if h.methods == nil {
-		h.methods = make(map[string]HandlerFn)
-	}
-	Debugf("REGISTER: %s", strings.ToLower(name))
-	h.methods[strings.ToLower(name)] = fn
 }

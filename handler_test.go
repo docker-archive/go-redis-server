@@ -8,7 +8,8 @@ import (
 func TestEmptyHandler(t *testing.T) {
 	c := make(chan struct{})
 	defer close(c)
-	reply, err := ApplyString(&Handler{}, &Request{}, c, &[]chan string{})
+	srv := &Server{}
+	reply, err := srv.ApplyString(&Request{})
 	if err != nil {
 		t.Fatalf("Unexpected error: %s", err)
 	}
@@ -18,11 +19,14 @@ func TestEmptyHandler(t *testing.T) {
 }
 
 func TestCustomHandler(t *testing.T) {
-	h := &Handler{}
-	h.Register("GET", func(r *Request, c chan struct{}, monitorChan *[]chan string) (ReplyWriter, error) {
+	srv, err := NewServer(DefaultConfig())
+	if err != nil {
+		t.Fatal(err)
+	}
+	srv.Register("GET", func(r *Request) (ReplyWriter, error) {
 		return &BulkReply{value: []byte("42")}, nil
 	})
-	reply, err := ApplyString(h, &Request{Name: "gEt"}, nil, nil)
+	reply, err := srv.ApplyString(&Request{Name: "gEt"})
 	if err != nil {
 		t.Fatalf("Unexpected error: %s", err)
 	}

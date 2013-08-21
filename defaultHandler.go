@@ -9,7 +9,7 @@ type (
 	HashValue   map[string][]byte
 	HashHash    map[string]HashValue
 	HashSub     map[string][]*ChannelWriter
-	HashBrStack map[string]*BrStack
+	HashBrStack map[string]*Stack
 )
 
 type DefaultHandler struct {
@@ -24,10 +24,10 @@ func (h *DefaultHandler) RPUSH(key string, values ...[]byte) (int, error) {
 		h.brstack = make(HashBrStack)
 	}
 	if _, exists := h.brstack[key]; !exists {
-		h.brstack[key] = NewBrStack([]byte(key))
+		h.brstack[key] = NewStack([]byte(key))
 	}
 	for _, value := range values {
-		h.brstack[key].Push(value)
+		h.brstack[key].PushBash(value)
 	}
 	return len(h.brstack[key].stack), nil
 }
@@ -41,7 +41,7 @@ func (h *DefaultHandler) BRPOP(keys ...[]byte) ([][]byte, error) {
 	for _, k := range keys {
 		key := string(k)
 		if _, exists := h.brstack[key]; !exists {
-			h.brstack[key] = NewBrStack(k)
+			h.brstack[key] = NewStack(k)
 		}
 		selectCases = append(selectCases, reflect.SelectCase{
 			Dir:  reflect.SelectRecv,
@@ -49,11 +49,48 @@ func (h *DefaultHandler) BRPOP(keys ...[]byte) ([][]byte, error) {
 		})
 	}
 	_, recv, _ := reflect.Select(selectCases)
-	s, ok := recv.Interface().(*BrStack)
+	s, ok := recv.Interface().(*Stack)
 	if !ok {
 		return nil, fmt.Errorf("Impossible to retrieve data. Wrong type.")
 	}
-	return [][]byte{s.Key, s.Pop()}, nil
+	return [][]byte{s.Key, s.PopBack()}, nil
+}
+
+func (h *DefaultHandler) LPUSH(key string, values ...[]byte) (int, error) {
+	if h.brstack == nil {
+		h.brstack = make(HashBrStack)
+	}
+	if _, exists := h.brstack[key]; !exists {
+		h.brstack[key] = NewStack([]byte(key))
+	}
+	for _, value := range values {
+		h.brstack[key].PushFront(value)
+	}
+	return len(h.brstack[key].stack), nil
+}
+
+func (h *DefaultHandler) BLPOP(keys ...[]byte) ([][]byte, error) {
+	if h.brstack == nil {
+		h.brstack = make(HashBrStack)
+	}
+
+	selectCases := []reflect.SelectCase{}
+	for _, k := range keys {
+		key := string(k)
+		if _, exists := h.brstack[key]; !exists {
+			h.brstack[key] = NewStack(k)
+		}
+		selectCases = append(selectCases, reflect.SelectCase{
+			Dir:  reflect.SelectRecv,
+			Chan: reflect.ValueOf(h.brstack[key].Chan),
+		})
+	}
+	_, recv, _ := reflect.Select(selectCases)
+	s, ok := recv.Interface().(*Stack)
+	if !ok {
+		return nil, fmt.Errorf("Impossible to retrieve data. Wrong type.")
+	}
+	return [][]byte{s.Key, s.PopFront()}, nil
 }
 
 func (h *DefaultHandler) HGET(key, subkey string) ([]byte, error) {
