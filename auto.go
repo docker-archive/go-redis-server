@@ -22,23 +22,32 @@ type CheckerFn func(request *Request) (reflect.Value, ReplyWriter)
 // 	DEL(key string, keys ...[]byte) (int, error)
 // }
 
-func NewAutoHandler(autoHandler interface{}) (*Handler, error) {
-	handler := &Handler{}
+func NewServer(c *Config) (*Server, error) {
+	srv := &Server{
+		Proto:        c.proto,
+		Addr:         c.host,
+		MonitorChans: []chan string{},
+		methods:      make(map[string]HandlerFn),
+	}
 
-	rh := reflect.TypeOf(autoHandler)
+	if c.handler == nil {
+		c.handler = NewDefaultHandler()
+	}
+
+	rh := reflect.TypeOf(c.handler)
 	for i := 0; i < rh.NumMethod(); i++ {
 		method := rh.Method(i)
-		handlerFn, err := createHandlerFn(autoHandler, &method.Func)
+		handlerFn, err := srv.createHandlerFn(c.handler, &method.Func)
 		if err != nil {
 			return nil, err
 		}
-		handler.Register(method.Name, handlerFn)
+		srv.Register(method.Name, handlerFn)
 	}
-	return handler, nil
+	return srv, nil
 }
 
-func createHandlerFn(autoHandler interface{}, f *reflect.Value) (HandlerFn, error) {
-	errorType := reflect.TypeOf(createHandlerFn).Out(1)
+func (srv *Server) createHandlerFn(autoHandler interface{}, f *reflect.Value) (HandlerFn, error) {
+	errorType := reflect.TypeOf(srv.createHandlerFn).Out(1)
 	mtype := f.Type()
 	checkers, err := createCheckers(autoHandler, f)
 	if err != nil {
@@ -56,11 +65,11 @@ func createHandlerFn(autoHandler interface{}, f *reflect.Value) (HandlerFn, erro
 		return nil, fmt.Errorf("Last return value must be an error (not %s)", t)
 	}
 
-	return handlerFn(autoHandler, f, checkers)
+	return srv.handlerFn(autoHandler, f, checkers)
 }
 
-func handlerFn(autoHandler interface{}, f *reflect.Value, checkers []CheckerFn) (HandlerFn, error) {
-	return func(request *Request, c chan struct{}, monitorChans *[]chan string) (ReplyWriter, error) {
+func (srv *Server) handlerFn(autoHandler interface{}, f *reflect.Value, checkers []CheckerFn) (HandlerFn, error) {
+	return func(request *Request) (ReplyWriter, error) {
 		input := []reflect.Value{reflect.ValueOf(autoHandler)}
 
 		for _, checker := range checkers {
@@ -83,13 +92,13 @@ func handlerFn(autoHandler interface{}, f *reflect.Value, checkers []CheckerFn) 
 				request.Host,
 				request.Name)
 		}
-		for _, c := range *monitorChans {
+		for _, c := range srv.MonitorChans {
 			select {
 			case c <- monitorString:
 			default:
 			}
 		}
-		Debugf("%s (connected monitors: %d)\n", monitorString, len(*monitorChans))
+		Debugf("%s (connected monitors: %d)\n", monitorString, len(srv.MonitorChans))
 
 		var result []reflect.Value
 
@@ -118,7 +127,7 @@ func handlerFn(autoHandler interface{}, f *reflect.Value, checkers []CheckerFn) 
 		}
 		if len(result) > 1 {
 			ret = result[0].Interface()
-			return createReply(ret, c, monitorChans)
+			return srv.createReply(request, ret)
 		}
 		return &StatusReply{code: "OK"}, nil
 	}, nil
@@ -132,7 +141,7 @@ func hashValueReply(v HashValue) (*MultiBulkReply, error) {
 	return MultiBulkFromMap(m), nil
 }
 
-func createReply(val interface{}, c chan struct{}, monitorChans *[]chan string) (ReplyWriter, error) {
+func (srv *Server) createReply(r *Request, val interface{}) (ReplyWriter, error) {
 	Debugf("CREATE REPLY: %T", val)
 	switch v := val.(type) {
 	case []interface{}:
@@ -162,8 +171,8 @@ func createReply(val interface{}, c chan struct{}, monitorChans *[]chan string) 
 		return v, nil
 	case *MonitorReply:
 		c := make(chan string)
-		*monitorChans = append(*monitorChans, c)
-		println("len monitor: ", len(*monitorChans))
+		srv.MonitorChans = append(srv.MonitorChans, c)
+		println("len monitor: ", len(srv.MonitorChans))
 		v.c = c
 		return v, nil
 	case *ChannelWriter:
@@ -171,7 +180,7 @@ func createReply(val interface{}, c chan struct{}, monitorChans *[]chan string) 
 	case *MultiChannelWriter:
 		println("New client")
 		for _, mcw := range v.Chans {
-			mcw.clientChan = c
+			mcw.clientChan = r.ClientChan
 		}
 		return v, nil
 	default:

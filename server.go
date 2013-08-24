@@ -12,19 +12,13 @@ import (
 )
 
 type Server struct {
-	Proto   string
-	Addr    string   // TCP address to listen on, ":6389" if empty
-	Handler *Handler // handler to invoke
+	Proto        string
+	Addr         string // TCP address to listen on, ":6389" if empty
+	MonitorChans []chan string
+	methods      map[string]HandlerFn
 }
 
 func (srv *Server) ListenAndServe() error {
-	if srv.Handler == nil {
-		h, err := NewAutoHandler(NewDefaultHandler())
-		if err != nil {
-			return err
-		}
-		srv.Handler = h
-	}
 	addr := srv.Addr
 	if srv.Proto == "" {
 		srv.Proto = "tcp"
@@ -45,27 +39,21 @@ func (srv *Server) ListenAndServe() error {
 // new service goroutine for each.  The service goroutines read requests and
 // then call srv.Handler to reply to them.
 func (srv *Server) Serve(l net.Listener) error {
-	if srv.Handler == nil {
-		return fmt.Errorf("nil handler")
-	}
 	defer l.Close()
-	monitorChan := []chan string{}
+	srv.MonitorChans = []chan string{}
 	for {
 		rw, err := l.Accept()
 		if err != nil {
 			return err
 		}
-		go Serve(rw, srv.Handler, &monitorChan)
+		go srv.ServeClient(rw)
 	}
 }
 
 // Serve starts a new redis session, using `conn` as a transport.
 // It reads commands using the redis protocol, passes them to `handler`,
 // and returns the result.
-func Serve(conn net.Conn, handler *Handler, monitorChan *[]chan string) (err error) {
-	if handler == nil {
-		return fmt.Errorf("nil handler")
-	}
+func (srv *Server) ServeClient(conn net.Conn) (err error) {
 	defer func() {
 		if err != nil {
 			fmt.Fprintf(conn, "-%s\n", err)
@@ -73,12 +61,12 @@ func Serve(conn net.Conn, handler *Handler, monitorChan *[]chan string) (err err
 		conn.Close()
 	}()
 
-	c := make(chan struct{})
+	clientChan := make(chan struct{})
 
 	// Read on `conn` in order to detect client disconnect
 	go func() {
 		// Close chan in order to trigger eventual selects
-		defer close(c)
+		defer close(clientChan)
 		defer Debugf("Client disconnected")
 		// FIXME: move conn within the request.
 		if false {
@@ -105,8 +93,8 @@ func Serve(conn net.Conn, handler *Handler, monitorChan *[]chan string) (err err
 			return err
 		}
 		request.Host = clientAddr
-
-		reply, err := Apply(handler, request, c, monitorChan)
+		request.ClientChan = clientChan
+		reply, err := srv.Apply(request)
 		if err != nil {
 			return err
 		}
