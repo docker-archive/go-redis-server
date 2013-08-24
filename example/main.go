@@ -38,19 +38,14 @@ func main() {
 	}()
 
 	myhandler := &MyHandler{}
-	handler, err := redis.NewAutoHandler(myhandler)
+	srv, err := redis.NewServer(redis.DefaultConfig().Proto("unix").Host("/tmp/redis.sock").Handler(myhandler))
 	if err != nil {
 		panic(err)
 	}
-	if err := handler.RegisterFct("test2", Test2); err != nil {
+	if err := srv.RegisterFct("test2", Test2); err != nil {
 		panic(err)
 	}
-	server := &redis.Server{
-		Proto:   "unix",
-		Handler: handler,
-		Addr:    "/tmp/redis.sock",
-	}
-	if err := server.ListenAndServe(); err != nil {
+	if err := srv.ListenAndServe(); err != nil {
 		panic(err)
 	}
 }
