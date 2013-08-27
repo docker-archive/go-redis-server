@@ -21,8 +21,10 @@ func (srv *Server) Register(name string, fn HandlerFn) {
 	if srv.methods == nil {
 		srv.methods = make(map[string]HandlerFn)
 	}
-	Debugf("REGISTER: %s", strings.ToLower(name))
-	srv.methods[strings.ToLower(name)] = fn
+	if fn != nil {
+		Debugf("REGISTER: %s", strings.ToLower(name))
+		srv.methods[strings.ToLower(name)] = fn
+	}
 }
 
 func (srv *Server) Apply(r *Request) (ReplyWriter, error) {

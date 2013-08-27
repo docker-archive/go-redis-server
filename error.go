@@ -1,6 +1,7 @@
 package redis
 
 import (
+	"errors"
 	"io"
 )
 
@@ -13,6 +14,10 @@ var (
 	ErrExpectPositivInteger = NewError("Expected positive integer")
 	ErrExpectMorePair       = NewError("Expected at least one key val pair")
 	ErrExpectEvenPair       = NewError("Got uneven number of key val pairs")
+)
+
+var (
+	ErrParseTimeout = errors.New("timeout is not an integer or out of range")
 )
 
 type ErrorReply struct {
