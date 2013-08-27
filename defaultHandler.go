@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"reflect"
 	"strconv"
+	"time"
 )
 
 type (
@@ -19,8 +20,9 @@ type Database struct {
 
 	values  HashValue
 	hvalues HashHash
-	sub     HashSub
 	brstack HashBrStack
+
+	sub HashSub
 }
 
 func NewDatabase(parent *Database) *Database {
@@ -41,81 +43,179 @@ type DefaultHandler struct {
 	dbs       map[int]*Database
 }
 
-func (h *DefaultHandler) RPUSH(key string, values ...[]byte) (int, error) {
+func (h *DefaultHandler) Rpush(key string, value []byte, values ...[]byte) (int, error) {
+	values = append([][]byte{value}, values...)
 	if h.Database == nil {
 		h.Database = NewDatabase(nil)
 	}
 	if _, exists := h.brstack[key]; !exists {
-		h.brstack[key] = NewStack([]byte(key))
+		h.brstack[key] = NewStack(key)
 	}
 	for _, value := range values {
-		h.brstack[key].PushBash(value)
+		h.brstack[key].PushBack(value)
 	}
-	return len(h.brstack[key].stack), nil
+	return h.brstack[key].Len(), nil
 }
 
-func (h *DefaultHandler) BRPOP(keys ...[]byte) ([][]byte, error) {
+func (h *DefaultHandler) Brpop(key string, keys ...string) (data [][]byte, err error) {
+	keys = append([]string{key}, keys...)
 	if h.Database == nil {
 		h.Database = NewDatabase(nil)
 	}
 
-	selectCases := []reflect.SelectCase{}
-	for _, k := range keys {
-		key := string(k)
-		if _, exists := h.brstack[key]; !exists {
-			h.brstack[key] = NewStack(k)
+	if len(keys) == 0 {
+		return nil, ErrParseTimeout
+	}
+
+	timeout, err := strconv.Atoi(keys[len(keys)-1])
+	if err != nil {
+		return nil, ErrParseTimeout
+	}
+	keys = keys[:len(keys)-1]
+
+	var timeoutChan <-chan time.Time
+	if timeout > 0 {
+		timeoutChan = time.After(time.Duration(timeout) * time.Second)
+	} else {
+		timeoutChan = make(chan time.Time)
+	}
+
+	finishedChan := make(chan struct{})
+	go func() {
+		defer close(finishedChan)
+		selectCases := []reflect.SelectCase{}
+		for _, k := range keys {
+			key := string(k)
+			if _, exists := h.brstack[key]; !exists {
+				h.brstack[key] = NewStack(k)
+			}
+			selectCases = append(selectCases, reflect.SelectCase{
+				Dir:  reflect.SelectRecv,
+				Chan: reflect.ValueOf(h.brstack[key].Chan),
+			})
 		}
-		selectCases = append(selectCases, reflect.SelectCase{
-			Dir:  reflect.SelectRecv,
-			Chan: reflect.ValueOf(h.brstack[key].Chan),
-		})
+		_, recv, _ := reflect.Select(selectCases)
+		s, ok := recv.Interface().(*Stack)
+		if !ok {
+			err = fmt.Errorf("Impossible to retrieve data. Wrong type.")
+			return
+		}
+		data = [][]byte{[]byte(s.Key), s.PopBack()}
+	}()
+
+	select {
+	case <-finishedChan:
+		return data, err
+	case <-timeoutChan:
+		return nil, nil
 	}
-	_, recv, _ := reflect.Select(selectCases)
-	s, ok := recv.Interface().(*Stack)
-	if !ok {
-		return nil, fmt.Errorf("Impossible to retrieve data. Wrong type.")
-	}
-	return [][]byte{s.Key, s.PopBack()}, nil
+	return nil, nil
 }
 
-func (h *DefaultHandler) LPUSH(key string, values ...[]byte) (int, error) {
+func (h *DefaultHandler) Lrange(key string, start, stop int) ([][]byte, error) {
 	if h.Database == nil {
 		h.Database = NewDatabase(nil)
 	}
 	if _, exists := h.brstack[key]; !exists {
-		h.brstack[key] = NewStack([]byte(key))
+		h.brstack[key] = NewStack(key)
+	}
+
+	if start < 0 {
+		if start = h.brstack[key].Len() + start; start < 0 {
+			start = 0
+		}
+	}
+
+	var ret [][]byte
+	for i := start; i <= stop; i++ {
+		if val := h.brstack[key].GetIndex(i); val != nil {
+			ret = append(ret, val)
+		}
+	}
+	return ret, nil
+}
+
+func (h *DefaultHandler) Lindex(key string, index int) ([]byte, error) {
+	if h.Database == nil {
+		h.Database = NewDatabase(nil)
+	}
+	if _, exists := h.brstack[key]; !exists {
+		h.brstack[key] = NewStack(key)
+	}
+	return h.brstack[key].GetIndex(index), nil
+}
+
+func (h *DefaultHandler) Lpush(key string, value []byte, values ...[]byte) (int, error) {
+	values = append([][]byte{value}, values...)
+	if h.Database == nil {
+		h.Database = NewDatabase(nil)
+	}
+	if _, exists := h.brstack[key]; !exists {
+		h.brstack[key] = NewStack(key)
 	}
 	for _, value := range values {
 		h.brstack[key].PushFront(value)
 	}
-	return len(h.brstack[key].stack), nil
+	return h.brstack[key].Len(), nil
 }
 
-func (h *DefaultHandler) BLPOP(keys ...[]byte) ([][]byte, error) {
+func (h *DefaultHandler) Blpop(key string, keys ...string) (data [][]byte, err error) {
+	keys = append([]string{key}, keys...)
 	if h.Database == nil {
 		h.Database = NewDatabase(nil)
 	}
 
-	selectCases := []reflect.SelectCase{}
-	for _, k := range keys {
-		key := string(k)
-		if _, exists := h.brstack[key]; !exists {
-			h.brstack[key] = NewStack(k)
+	if len(keys) == 0 {
+		return nil, ErrParseTimeout
+	}
+
+	timeout, err := strconv.Atoi(keys[len(keys)-1])
+	if err != nil {
+		return nil, ErrParseTimeout
+	}
+	keys = keys[:len(keys)-1]
+
+	var timeoutChan <-chan time.Time
+	if timeout > 0 {
+		timeoutChan = time.After(time.Duration(timeout) * time.Second)
+	} else {
+		timeoutChan = make(chan time.Time)
+	}
+
+	finishedChan := make(chan struct{})
+
+	go func() {
+		defer close(finishedChan)
+		selectCases := []reflect.SelectCase{}
+		for _, k := range keys {
+			key := string(k)
+			if _, exists := h.brstack[key]; !exists {
+				h.brstack[key] = NewStack(k)
+			}
+			selectCases = append(selectCases, reflect.SelectCase{
+				Dir:  reflect.SelectRecv,
+				Chan: reflect.ValueOf(h.brstack[key].Chan),
+			})
 		}
-		selectCases = append(selectCases, reflect.SelectCase{
-			Dir:  reflect.SelectRecv,
-			Chan: reflect.ValueOf(h.brstack[key].Chan),
-		})
+		_, recv, _ := reflect.Select(selectCases)
+		s, ok := recv.Interface().(*Stack)
+		if !ok {
+			err = fmt.Errorf("Impossible to retrieve data. Wrong type.")
+			return
+		}
+		data = [][]byte{[]byte(s.Key), s.PopFront()}
+	}()
+
+	select {
+	case <-finishedChan:
+		return data, err
+	case <-timeoutChan:
+		return nil, nil
 	}
-	_, recv, _ := reflect.Select(selectCases)
-	s, ok := recv.Interface().(*Stack)
-	if !ok {
-		return nil, fmt.Errorf("Impossible to retrieve data. Wrong type.")
-	}
-	return [][]byte{s.Key, s.PopFront()}, nil
+	return nil, nil
 }
 
-func (h *DefaultHandler) HGET(key, subkey string) ([]byte, error) {
+func (h *DefaultHandler) Hget(key, subkey string) ([]byte, error) {
 	if h.Database == nil || h.hvalues == nil {
 		return nil, nil
 	}
@@ -128,7 +228,7 @@ func (h *DefaultHandler) HGET(key, subkey string) ([]byte, error) {
 	return nil, nil
 }
 
-func (h *DefaultHandler) HSET(key, subkey string, value []byte) (int, error) {
+func (h *DefaultHandler) Hset(key, subkey string, value []byte) (int, error) {
 	ret := 0
 
 	if h.Database == nil {
@@ -148,21 +248,21 @@ func (h *DefaultHandler) HSET(key, subkey string, value []byte) (int, error) {
 	return ret, nil
 }
 
-func (h *DefaultHandler) HGETALL(key string) (HashValue, error) {
+func (h *DefaultHandler) Hgetall(key string) (HashValue, error) {
 	if h.Database == nil || h.hvalues == nil {
 		return nil, nil
 	}
 	return h.hvalues[key], nil
 }
 
-func (h *DefaultHandler) GET(key string) ([]byte, error) {
+func (h *DefaultHandler) Get(key string) ([]byte, error) {
 	if h.Database == nil || h.values == nil {
 		return nil, nil
 	}
 	return h.values[key], nil
 }
 
-func (h *DefaultHandler) SET(key string, value []byte) error {
+func (h *DefaultHandler) Set(key string, value []byte) error {
 	if h.Database == nil {
 		h.Database = NewDatabase(nil)
 	}
@@ -170,30 +270,30 @@ func (h *DefaultHandler) SET(key string, value []byte) error {
 	return nil
 }
 
-func (h *DefaultHandler) DEL(keys ...[]byte) (int, error) {
+func (h *DefaultHandler) Del(key string, keys ...string) (int, error) {
+	keys = append([]string{key}, keys...)
 	if h.Database == nil {
 		return 0, nil
 	}
 	count := 0
 	for _, k := range keys {
-		key := string(k)
-		if _, exists := h.values[key]; exists {
-			delete(h.values, key)
+		if _, exists := h.values[k]; exists {
+			delete(h.values, k)
 			count++
 		}
 		if _, exists := h.hvalues[key]; exists {
-			delete(h.hvalues, key)
+			delete(h.hvalues, k)
 			count++
 		}
 	}
 	return count, nil
 }
 
-func (h *DefaultHandler) PING() (*StatusReply, error) {
+func (h *DefaultHandler) Ping() (*StatusReply, error) {
 	return &StatusReply{code: "PONG"}, nil
 }
 
-func (h *DefaultHandler) SUBSCRIBE(channels ...[]byte) (*MultiChannelWriter, error) {
+func (h *DefaultHandler) Subscribe(channels ...[]byte) (*MultiChannelWriter, error) {
 	if h.Database == nil {
 		h.Database = NewDatabase(nil)
 	}
@@ -218,7 +318,7 @@ func (h *DefaultHandler) SUBSCRIBE(channels ...[]byte) (*MultiChannelWriter, err
 	return ret, nil
 }
 
-func (h *DefaultHandler) PUBLISH(key string, value []byte) (int, error) {
+func (h *DefaultHandler) Publish(key string, value []byte) (int, error) {
 	if h.Database == nil || h.sub == nil {
 		return 0, nil
 	}
@@ -242,7 +342,7 @@ func (h *DefaultHandler) PUBLISH(key string, value []byte) (int, error) {
 	return i, nil
 }
 
-func (h *DefaultHandler) SELECT(key string) error {
+func (h *DefaultHandler) Select(key string) error {
 	if h.dbs == nil {
 		h.dbs = map[int]*Database{0: h.Database}
 	}
@@ -260,7 +360,7 @@ func (h *DefaultHandler) SELECT(key string) error {
 	return nil
 }
 
-func (h *DefaultHandler) MONITOR() (*MonitorReply, error) {
+func (h *DefaultHandler) Monitor() (*MonitorReply, error) {
 	return &MonitorReply{}, nil
 }
 

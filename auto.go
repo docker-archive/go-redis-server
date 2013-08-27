@@ -17,34 +17,10 @@ type CheckerFn func(request *Request) (reflect.Value, ReplyWriter)
 // 	HGETALL(key string) (*map[string][]byte, error)
 // 	HGET(hash string, key string) ([]byte, error)
 // 	HSET(hash string, key string, value []byte) error
-// 	BRPOP(channels ...[]byte) ([][]byte, error)
-// 	SUBSCRIBE(channels ...[]byte) (*ChannelWriter, error)
-// 	DEL(key string, keys ...[]byte) (int, error)
+// 	BRPOP(channel string, channels ...string) ([][]byte, error)
+// 	SUBSCRIBE(channel string, channels ...string) (*ChannelWriter, error)
+// 	DEL(key string, keys ...string) (int, error)
 // }
-
-func NewServer(c *Config) (*Server, error) {
-	srv := &Server{
-		Proto:        c.proto,
-		Addr:         c.host,
-		MonitorChans: []chan string{},
-		methods:      make(map[string]HandlerFn),
-	}
-
-	if c.handler == nil {
-		c.handler = NewDefaultHandler()
-	}
-
-	rh := reflect.TypeOf(c.handler)
-	for i := 0; i < rh.NumMethod(); i++ {
-		method := rh.Method(i)
-		handlerFn, err := srv.createHandlerFn(c.handler, &method.Func)
-		if err != nil {
-			return nil, err
-		}
-		srv.Register(method.Name, handlerFn)
-	}
-	return srv, nil
-}
 
 func (srv *Server) createHandlerFn(autoHandler interface{}, f *reflect.Value) (HandlerFn, error) {
 	errorType := reflect.TypeOf(srv.createHandlerFn).Out(1)
@@ -203,6 +179,8 @@ func createCheckers(autoHandler interface{}, f *reflect.Value) ([]CheckerFn, err
 		switch mtype.In(i) {
 		case reflect.TypeOf(""):
 			checkers = append(checkers, stringChecker(i-start))
+		case reflect.TypeOf([]string{}):
+			checkers = append(checkers, stringSliceChecker(i-start))
 		case reflect.TypeOf([]byte{}):
 			checkers = append(checkers, byteChecker(i-start))
 		case reflect.TypeOf([][]byte{}):
@@ -228,6 +206,20 @@ func stringChecker(index int) CheckerFn {
 			return reflect.ValueOf(""), err
 		}
 		return reflect.ValueOf(v), nil
+	}
+}
+
+func stringSliceChecker(index int) CheckerFn {
+	return func(request *Request) (reflect.Value, ReplyWriter) {
+		if !request.HasArgument(index) {
+			return reflect.ValueOf([]string{}), nil
+		} else {
+			v, err := request.GetStringSlice(index)
+			if err != nil {
+				return reflect.ValueOf([]string{}), err
+			}
+			return reflect.ValueOf(v), nil
+		}
 	}
 }
 

@@ -17,7 +17,7 @@ func (h *MyHandler) Test() ([]byte, error) {
 // Get override the DefaultHandler's method.
 func (h *MyHandler) Get(key string) ([]byte, error) {
 	// However, we still can call the DefaultHandler GET method and use it.
-	ret, err := h.DefaultHandler.GET(key)
+	ret, err := h.DefaultHandler.Get(key)
 	if ret == nil {
 		return nil, err
 	}

@@ -53,6 +53,17 @@ func (r *Request) GetPositiveInteger(index int) (int, ReplyWriter) {
 	return i, nil
 }
 
+func (r *Request) GetStringSlice(index int) ([]string, ReplyWriter) {
+	if reply := r.ExpectArgument(index); reply != nil {
+		return nil, reply
+	}
+	var ret []string
+	for _, elem := range r.Args[index:] {
+		ret = append(ret, string(elem))
+	}
+	return ret, nil
+}
+
 func (r *Request) GetMap(index int) (map[string][]byte, ReplyWriter) {
 	count := len(r.Args) - index
 	if count <= 0 {
