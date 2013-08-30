@@ -6,9 +6,9 @@ import (
 
 type Stack struct {
 	sync.Mutex
+	Key   string
 	stack [][]byte
 	Chan  chan *Stack
-	Key   []byte
 }
 
 func (s *Stack) PopBack() []byte {
@@ -28,7 +28,7 @@ func (s *Stack) PopBack() []byte {
 	return ret
 }
 
-func (s *Stack) PushBash(val []byte) {
+func (s *Stack) PushBack(val []byte) {
 	s.Lock()
 	defer s.Unlock()
 
@@ -36,12 +36,12 @@ func (s *Stack) PushBash(val []byte) {
 		s.stack = [][]byte{}
 	}
 
-	s.stack = append(s.stack, val)
 	go func() {
 		if s.Chan != nil {
 			s.Chan <- s
 		}
 	}()
+	s.stack = append(s.stack, val)
 }
 
 func (s *Stack) PopFront() []byte {
@@ -77,13 +77,31 @@ func (s *Stack) PushFront(val []byte) {
 	}()
 }
 
+// GetIndex return the element at the requested index.
+// If no element correspond, return nil.
+func (s *Stack) GetIndex(index int) []byte {
+	s.Lock()
+	defer s.Unlock()
+
+	if index < 0 {
+		if len(s.stack)+index >= 0 {
+			return s.stack[len(s.stack)+index]
+		}
+		return nil
+	}
+	if len(s.stack) > index {
+		return s.stack[index]
+	}
+	return nil
+}
+
 func (s *Stack) Len() int {
 	s.Lock()
 	defer s.Unlock()
 	return len(s.stack)
 }
 
-func NewStack(key []byte) *Stack {
+func NewStack(key string) *Stack {
 	return &Stack{
 		stack: [][]byte{},
 		Chan:  make(chan *Stack),
