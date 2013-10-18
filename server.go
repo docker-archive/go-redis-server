@@ -6,8 +6,8 @@ package redis
 
 import (
 	"fmt"
-	"io"
-	"io/ioutil"
+	// "io"
+	// "io/ioutil"
 	"net"
 	"reflect"
 )
@@ -75,7 +75,7 @@ func (srv *Server) ServeClient(conn net.Conn) (err error) {
 			io.Copy(ioutil.Discard, conn)
 		}
 	}()
-	 */
+	*/
 
 	var clientAddr string
 
