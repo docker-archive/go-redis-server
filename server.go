@@ -65,6 +65,7 @@ func (srv *Server) ServeClient(conn net.Conn) (err error) {
 	clientChan := make(chan struct{})
 
 	// Read on `conn` in order to detect client disconnect
+	/*
 	go func() {
 		// Close chan in order to trigger eventual selects
 		defer close(clientChan)
@@ -74,6 +75,7 @@ func (srv *Server) ServeClient(conn net.Conn) (err error) {
 			io.Copy(ioutil.Discard, conn)
 		}
 	}()
+	 */
 
 	var clientAddr string
 
