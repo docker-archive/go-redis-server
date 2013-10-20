@@ -364,6 +364,8 @@ func (h *DefaultHandler) Monitor() (*MonitorReply, error) {
 	return &MonitorReply{}, nil
 }
 
+var lock = make(chan bool, 1)
+
 func (h *DefaultHandler) Incr(key string) (int, error) {
 	if h.Database == nil {
 		h.Database = NewDatabase(nil)
@@ -379,8 +381,6 @@ func (h *DefaultHandler) Incr(key string) (int, error) {
 
 	return temp, nil
 }
-
-var lock = make(chan bool, 1)
 
 func (h *DefaultHandler) Decr(key string) (int, error) {
 	if h.Database == nil {
