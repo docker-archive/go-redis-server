@@ -364,6 +364,40 @@ func (h *DefaultHandler) Monitor() (*MonitorReply, error) {
 	return &MonitorReply{}, nil
 }
 
+func (h *DefaultHandler) Incr(key string) (int, error) {
+	if h.Database == nil {
+		h.Database = NewDatabase(nil)
+	}
+
+	lock <- true
+
+	temp, _ := strconv.Atoi(string(h.values[key]))
+	temp = temp + 1
+	h.values[key] = []byte(strconv.Itoa(temp))
+
+	<-lock
+
+	return temp, nil
+}
+
+var lock = make(chan bool, 1)
+
+func (h *DefaultHandler) Decr(key string) (int, error) {
+	if h.Database == nil {
+		h.Database = NewDatabase(nil)
+	}
+
+	lock <- true
+
+	temp, _ := strconv.Atoi(string(h.values[key]))
+	temp = temp - 1
+	h.values[key] = []byte(strconv.Itoa(temp))
+
+	<-lock
+
+	return temp, nil
+}
+
 func NewDefaultHandler() *DefaultHandler {
 	db := NewDatabase(nil)
 	ret := &DefaultHandler{
