@@ -412,6 +412,19 @@ func (h *DefaultHandler) Expire(key, after string) (error) {
 	return nil
 }
 
+func (h *DefaultHandler) Exists(key string) (int, error) {
+	if h.Database == nil {
+		h.Database = NewDatabase(nil)
+	}
+
+	_, exists := h.values[key]
+	if exists {
+		return 1, nil
+	} else {
+		return 0, nil
+	}
+}
+
 func NewDefaultHandler() *DefaultHandler {
 	db := NewDatabase(nil)
 	ret := &DefaultHandler{
