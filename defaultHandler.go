@@ -398,6 +398,20 @@ func (h *DefaultHandler) Decr(key string) (int, error) {
 	return temp, nil
 }
 
+func (h *DefaultHandler) Expire(key, after string) (error) {
+	if h.Database == nil {
+		h.Database = NewDatabase(nil)
+	}
+
+	d, _ := strconv.Atoi(after)
+
+	time.AfterFunc(time.Duration(d) * time.Second, func() {
+		h.Del(key)
+	})
+
+	return nil
+}
+
 func NewDefaultHandler() *DefaultHandler {
 	db := NewDatabase(nil)
 	ret := &DefaultHandler{
