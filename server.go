@@ -5,6 +5,7 @@
 package redis
 
 import (
+	"bufio"
 	"fmt"
 	"io"
 	"io/ioutil"
@@ -88,8 +89,9 @@ func (srv *Server) ServeClient(conn net.Conn) (err error) {
 		clientAddr = co.RemoteAddr().String()
 	}
 
+	reader := bufio.NewReader(conn)
 	for {
-		request, err := parseRequest(conn)
+		request, err := parseRequest(reader)
 		if err != nil {
 			return err
 		}
