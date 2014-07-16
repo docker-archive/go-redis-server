@@ -12,7 +12,7 @@ func TestWriteStatus(t *testing.T) {
 		reply    ReplyWriter
 		expected string
 	}{
-		{&StatusReply{code: "OK"}, "+OK\r\n"},
+		{&StatusReply{Code: "OK"}, "+OK\r\n"},
 		{&IntegerReply{number: 42}, ":42\r\n"},
 		{&ErrorReply{code: "ERROR", message: "Something went wrong"}, "-ERROR Something went wrong\r\n"},
 		{&BulkReply{}, "$-1\r\n"},

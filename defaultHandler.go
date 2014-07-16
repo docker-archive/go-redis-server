@@ -290,7 +290,7 @@ func (h *DefaultHandler) Del(key string, keys ...string) (int, error) {
 }
 
 func (h *DefaultHandler) Ping() (*StatusReply, error) {
-	return &StatusReply{code: "PONG"}, nil
+	return &StatusReply{Code: "PONG"}, nil
 }
 
 func (h *DefaultHandler) Subscribe(channels ...[]byte) (*MultiChannelWriter, error) {
