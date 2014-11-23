@@ -65,7 +65,7 @@ func (srv *Server) ServeClient(conn net.Conn) (err error) {
 	clientChan := make(chan struct{})
 
 	// Read on `conn` in order to detect client disconnect
-	go func() {
+	defer func() {
 		// Close chan in order to trigger eventual selects
 		defer close(clientChan)
 		defer Debugf("Client disconnected")
