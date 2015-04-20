@@ -106,6 +106,55 @@ func (srv *Server) ServeClient(conn net.Conn) (err error) {
 	return nil
 }
 
+func (srv *Server) ServeReplClient(conn net.Conn) (err error) {
+	defer func() {
+		if err != nil {
+			fmt.Fprintf(conn, "-%s\n", err)
+		}
+		conn.Close()
+	}()
+
+	clientChan := make(chan struct{})
+
+	// Read on `conn` in order to detect client disconnect
+	defer func() {
+		// Close chan in order to trigger eventual selects
+		defer close(clientChan)
+		defer Debugf("Client disconnected")
+		// FIXME: move conn within the request.
+		if false {
+			io.Copy(ioutil.Discard, conn)
+		}
+	}()
+
+	var clientAddr string
+
+	switch co := conn.(type) {
+	case *net.UnixConn:
+		f, err := conn.(*net.UnixConn).File()
+		if err != nil {
+			return err
+		}
+		clientAddr = f.Name()
+	default:
+		clientAddr = co.RemoteAddr().String()
+	}
+
+	for {
+		request, err := parseRequest(conn)
+		if err != nil {
+			return err
+		}
+		request.Host = clientAddr
+		request.ClientChan = clientChan
+		_, err = srv.Apply(request)
+		if err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
 func NewServer(c *Config) (*Server, error) {
 	srv := &Server{
 		Proto:        c.proto,

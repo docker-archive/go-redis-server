@@ -117,6 +117,19 @@ func hashValueReply(v HashValue) (*MultiBulkReply, error) {
 	return MultiBulkFromMap(m), nil
 }
 
+func indexValueReply(v map[int][]byte) (*MultiBulkReply, error) {
+	fmt.Println(v)
+	fmt.Println(len(v))
+	m := make([]interface{}, len(v)*2)
+	i := 0
+	for k, v := range v {
+		m[i] = v
+		m[i+1] = k
+		i += 2
+	}
+	return &MultiBulkReply{values: m}, nil
+}
+
 func (srv *Server) createReply(r *Request, val interface{}) (ReplyWriter, error) {
 	Debugf("CREATE REPLY: %T", val)
 	switch v := val.(type) {
@@ -139,6 +152,8 @@ func (srv *Server) createReply(r *Request, val interface{}) (ReplyWriter, error)
 		return hashValueReply(v)
 	case map[string][]byte:
 		return hashValueReply(v)
+	case map[int][]byte:
+		return indexValueReply(v)
 	case map[string]interface{}:
 		return MultiBulkFromMap(v), nil
 	case int:

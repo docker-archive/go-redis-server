@@ -13,6 +13,7 @@ func parseRequest(conn io.ReadCloser) (*Request, error) {
 	// first line of redis request should be:
 	// *<number of arguments>CRLF
 	line, err := r.ReadString('\n')
+	// fmt.Println(line)
 	if err != nil {
 		return nil, err
 	}
@@ -55,6 +56,7 @@ func parseRequest(conn io.ReadCloser) (*Request, error) {
 			args = append(args, []byte(arg))
 		}
 	}
+	fmt.Println(strings.ToLower(string(fields[0])))
 	return &Request{
 		Name: strings.ToLower(string(fields[0])),
 		Args: args,
