@@ -7,8 +7,8 @@ package redis
 import (
 	"bufio"
 	"fmt"
-	"io"
-	"io/ioutil"
+	// "io"
+	// "io/ioutil"
 	"net"
 	"reflect"
 )
@@ -66,15 +66,17 @@ func (srv *Server) ServeClient(conn net.Conn) (err error) {
 	clientChan := make(chan struct{})
 
 	// Read on `conn` in order to detect client disconnect
-	go func() {
-		// Close chan in order to trigger eventual selects
-		defer close(clientChan)
-		defer Debugf("Client disconnected")
-		// FIXME: move conn within the request.
-		if false {
-			io.Copy(ioutil.Discard, conn)
-		}
-	}()
+	/*
+		go func() {
+			// Close chan in order to trigger eventual selects
+			defer close(clientChan)
+			defer Debugf("Client disconnected")
+			// FIXME: move conn within the request.
+			if false {
+				io.Copy(ioutil.Discard, conn)
+			}
+		}()
+	*/
 
 	var clientAddr string
 
