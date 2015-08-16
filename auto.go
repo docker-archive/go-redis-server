@@ -105,7 +105,7 @@ func (srv *Server) handlerFn(autoHandler interface{}, f *reflect.Value, checkers
 			ret = result[0].Interface()
 			return srv.createReply(request, ret)
 		}
-		return &StatusReply{code: "OK"}, nil
+		return &StatusReply{Code: "OK"}, nil
 	}, nil
 }
 

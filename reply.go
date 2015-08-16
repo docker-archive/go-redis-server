@@ -11,11 +11,11 @@ import (
 type ReplyWriter io.WriterTo
 
 type StatusReply struct {
-	code string
+	Code string
 }
 
 func (r *StatusReply) WriteTo(w io.Writer) (int64, error) {
-	n, err := w.Write([]byte("+" + r.code + "\r\n"))
+	n, err := w.Write([]byte("+" + r.Code + "\r\n"))
 	return int64(n), err
 }
 
@@ -93,7 +93,7 @@ func (r *MonitorReply) WriteTo(w io.Writer) (int64, error) {
 	statusReply := &StatusReply{}
 	totalBytes := int64(0)
 	for line := range r.c {
-		statusReply.code = line
+		statusReply.Code = line
 		if n, err := statusReply.WriteTo(w); err != nil {
 			totalBytes += n
 			return int64(totalBytes), err
