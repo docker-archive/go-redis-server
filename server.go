@@ -5,6 +5,7 @@
 package redis
 
 import (
+	"bufio"
 	"fmt"
 	"io"
 	"io/ioutil"
@@ -88,8 +89,9 @@ func (srv *Server) ServeClient(conn net.Conn) (err error) {
 		clientAddr = co.RemoteAddr().String()
 	}
 
+	reader := bufio.NewReader(conn)
 	for {
-		request, err := parseRequest(conn)
+		request, err := parseRequest(reader)
 		if err != nil {
 			return err
 		}
@@ -126,10 +128,9 @@ func NewServer(c *Config) (*Server, error) {
 	rh := reflect.TypeOf(c.handler)
 	for i := 0; i < rh.NumMethod(); i++ {
 		method := rh.Method(i)
-		if method.Name[0] > 'a' && method.Name[0] < 'z' {
+		if method.Name[0] >= 'a' && method.Name[0] <= 'z' {
 			continue
 		}
-		println(method.Name)
 		handlerFn, err := srv.createHandlerFn(c.handler, &method.Func)
 		if err != nil {
 			return nil, err
