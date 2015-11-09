@@ -129,7 +129,6 @@ func NewServer(c *Config) (*Server, error) {
 		if method.Name[0] > 'a' && method.Name[0] < 'z' {
 			continue
 		}
-		println(method.Name)
 		handlerFn, err := srv.createHandlerFn(c.handler, &method.Func)
 		if err != nil {
 			return nil, err

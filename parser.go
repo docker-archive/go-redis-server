@@ -21,9 +21,10 @@ func parseRequest(conn io.ReadCloser) (*Request, error) {
 
 	// Multiline request:
 	if line[0] == '*' {
-		if _, err := fmt.Sscanf(line, "*%d\r", &argsCount); err != nil {
+		if _, err := fmt.Sscanf(line, "*%d\r\n", &argsCount); err != nil {
 			return nil, malformed("*<numberOfArguments>", line)
 		}
+		fmt.Println(argsCount)
 		// All next lines are pairs of:
 		//$<number of bytes of argument 1> CR LF
 		//<argument data> CR LF
@@ -71,7 +72,7 @@ func readArgument(r *bufio.Reader) ([]byte, error) {
 		return nil, malformed("$<argumentLength>", line)
 	}
 	var argSize int
-	if _, err := fmt.Sscanf(line, "$%d\r", &argSize); err != nil {
+	if _, err := fmt.Sscanf(line, "$%d\r\n", &argSize); err != nil {
 		return nil, malformed("$<argumentSize>", line)
 	}
 
