@@ -24,7 +24,6 @@ func parseRequest(conn io.ReadCloser) (*Request, error) {
 		if _, err := fmt.Sscanf(line, "*%d\r\n", &argsCount); err != nil {
 			return nil, malformed("*<numberOfArguments>", line)
 		}
-		fmt.Println(argsCount)
 		// All next lines are pairs of:
 		//$<number of bytes of argument 1> CR LF
 		//<argument data> CR LF
