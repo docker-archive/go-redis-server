@@ -1,4 +1,4 @@
-[![Build Status](https://travis-ci.org/dotcloud/go-redis-server.png)](https://travis-ci.org/dotcloud/go-redis-server)
+[![Build Status](https://travis-ci.org/docker/go-redis-server.png)](https://travis-ci.org/dotcloud/go-redis-server)
 
 Redis server protocol library
 =============================
