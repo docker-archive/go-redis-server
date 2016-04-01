@@ -97,16 +97,18 @@ func readArgument(r *bufio.Reader) ([]byte, error) {
 }
 
 func malformed(expected string, got string) error {
-	Debugf("Mailformed request:'%s does not match %s\\r\\n'", got, expected)
-	return fmt.Errorf("Mailformed request:'%s does not match %s\\r\\n'", got, expected)
+	Debugf("Malformed request: %q does not match %q\n", got, expected)
+	return fmt.Errorf("Malformed request: %q does not match %q\r\n",
+		got, expected)
 }
 
 func malformedLength(expected int, got int) error {
 	return fmt.Errorf(
-		"Mailformed request: argument length '%d does not match %d\\r\\n'",
+		"Malformed request: argument length %d does not match %d\r\n",
 		got, expected)
 }
 
 func malformedMissingCRLF() error {
-	return fmt.Errorf("Mailformed request: line should end with \\r\\n")
+	return fmt.Errorf("Malformed request: line should end with %q\r\n",
+		"\r\n")
 }
