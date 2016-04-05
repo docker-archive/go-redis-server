@@ -2,10 +2,13 @@ package redis
 
 import (
 	"fmt"
+	"io"
 	"os"
 	"runtime"
 	"strings"
 )
+
+var Stderr = io.Writer(os.Stderr)
 
 // Debug function, if the debug flag is set, then display. Do nothing otherwise
 // If Docker is in damon mode, also send the debug info on the socket
@@ -22,6 +25,6 @@ func Debugf(format string, a ...interface{}) {
 			file = file[strings.LastIndex(file, "/")+1:]
 		}
 
-		fmt.Fprintf(os.Stderr, fmt.Sprintf("[%d] [debug] %s:%d %s\n", os.Getpid(), file, line, format), a...)
+		fmt.Fprintf(Stderr, fmt.Sprintf("[%d] [debug] %s:%d %s\n", os.Getpid(), file, line, format), a...)
 	}
 }
