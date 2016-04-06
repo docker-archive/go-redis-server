@@ -244,6 +244,9 @@ func (h *DefaultHandler) Hset(key, subkey string, value []byte) (int, error) {
 	if h.Database == nil {
 		h.Database = NewDatabase(nil)
 	}
+	if h.hvalues == nil {
+		h.hvalues = make(HashHash)
+	}
 	if _, exists := h.hvalues[key]; !exists {
 		h.hvalues[key] = make(HashValue)
 		ret = 1
