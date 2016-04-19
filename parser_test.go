@@ -3,6 +3,7 @@ package redis
 import (
 	"bufio"
 	"bytes"
+	"io"
 	"io/ioutil"
 	"strings"
 	"testing"
@@ -36,7 +37,7 @@ func TestParseBadRequests(t *testing.T) {
 		"*2\r\n$3\r\ngEt\r\n$100\r\nx\r\n",
 	}
 	for _, v := range requests {
-		_, err := parseRequest(ioutil.NopCloser(strings.NewReader(v)))
+		_, err := parseRequest(bufio.NewReader(strings.NewReader(v)))
 		if err == nil {
 			t.Fatalf("Expected error for request [%s]", v)
 		}
@@ -55,7 +56,7 @@ func TestSucess(t *testing.T) {
 	}
 
 	for _, p := range expected {
-		request, err := parseRequest(ioutil.NopCloser(strings.NewReader(p.s)))
+		request, err := parseRequest(bufio.NewReader(strings.NewReader(p.s)))
 		if err != nil {
 			t.Fatalf("Un xxpected eror %s when parsting", err, p.s)
 		}
@@ -71,6 +72,22 @@ func TestSucess(t *testing.T) {
 			}
 		}
 	}
+}
+
+func TestPipielines(t *testing.T) {
+	chain := strings.Repeat("*2\r\n$3\r\ngEt\r\n$1\r\nx\r\n", 10)
+	reader := bufio.NewReader(strings.NewReader(chain))
+	for i := 0; i < 10; i++ {
+		_, err := parseRequest(reader)
+		if err != nil {
+			t.Fatalf("Unexpected error %s when parsing", err)
+		}
+	}
+	_, err := parseRequest(reader)
+	if err != io.EOF {
+		t.Fatalf("Expected EOF but received %+v", err)
+	}
+
 }
 
 func b(args ...string) [][]byte {

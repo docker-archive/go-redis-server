@@ -8,8 +8,7 @@ import (
 	"strings"
 )
 
-func parseRequest(conn io.ReadCloser) (*Request, error) {
-	r := bufio.NewReader(conn)
+func parseRequest(r *bufio.Reader) (*Request, error) {
 	// first line of redis request should be:
 	// *<number of arguments>CRLF
 	line, err := r.ReadString('\n')
@@ -43,7 +42,6 @@ func parseRequest(conn io.ReadCloser) (*Request, error) {
 		return &Request{
 			Name: strings.ToLower(string(firstArg)),
 			Args: args,
-			Body: conn,
 		}, nil
 	}
 
@@ -59,7 +57,6 @@ func parseRequest(conn io.ReadCloser) (*Request, error) {
 	return &Request{
 		Name: strings.ToLower(string(fields[0])),
 		Args: args,
-		Body: conn,
 	}, nil
 
 }
