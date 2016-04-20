@@ -11,9 +11,11 @@ import (
 	// "io/ioutil"
 	"net"
 	"reflect"
+	"sync"
 )
 
 type Server struct {
+	sync.Mutex
 	Proto        string
 	Addr         string // TCP address to listen on, ":6389" if empty
 	MonitorChans []chan string
