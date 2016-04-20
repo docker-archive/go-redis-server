@@ -18,6 +18,7 @@ type Server struct {
 	Addr         string // TCP address to listen on, ":6389" if empty
 	MonitorChans []chan string
 	methods      map[string]HandlerFn
+	listener     net.Listener
 }
 
 func (srv *Server) ListenAndServe() error {
@@ -34,7 +35,13 @@ func (srv *Server) ListenAndServe() error {
 	if e != nil {
 		return e
 	}
+	srv.listener = l
 	return srv.Serve(l)
+}
+
+// Close shuts down the network port/socket
+func (srv *Server) Close() error {
+	return srv.listener.Close()
 }
 
 // Serve accepts incoming connections on the Listener l, creating a
