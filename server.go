@@ -43,6 +43,9 @@ func (srv *Server) ListenAndServe() error {
 
 // Close shuts down the network port/socket
 func (srv *Server) Close() error {
+	if srv.listener == nil {
+		return nil
+	}
 	return srv.listener.Close()
 }
 
