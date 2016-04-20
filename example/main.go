@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+
 	redis "github.com/dotcloud/go-redis-server"
 )
 

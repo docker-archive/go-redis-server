@@ -130,6 +130,12 @@ func (h *DefaultHandler) Lrange(key string, start, stop int) ([][]byte, error) {
 		}
 	}
 
+	if stop < 0 {
+		if stop = h.brstack[key].Len() + stop; stop < 0 {
+			stop = 0
+		}
+	}
+
 	var ret [][]byte
 	for i := start; i <= stop; i++ {
 		if val := h.brstack[key].GetIndex(i); val != nil {
