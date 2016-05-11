@@ -291,8 +291,13 @@ func (h *DefaultHandler) Del(key string, keys ...string) (int, error) {
 			delete(h.values, k)
 			count++
 		}
-		if _, exists := h.hvalues[key]; exists {
+		if _, exists := h.hvalues[k]; exists {
 			delete(h.hvalues, k)
+			count++
+		}
+
+		if _, exists := h.brstack[k]; exists {
+			delete(h.brstack, k)
 			count++
 		}
 	}
