@@ -23,7 +23,7 @@ type Server struct {
 	listener     net.Listener
 }
 
-func (srv *Server) ListenAndServe() error {
+func (srv *Server) listen() error {
 	addr := srv.Addr
 	if srv.Proto == "" {
 		srv.Proto = "tcp"
@@ -38,7 +38,14 @@ func (srv *Server) ListenAndServe() error {
 		return e
 	}
 	srv.listener = l
-	return srv.Serve(l)
+
+	// if port was 0 and proto is tcp, the listener would use a random port
+	srv.Addr = l.Addr().String()
+	return nil
+}
+
+func (srv *Server) Start() error {
+	return srv.Serve(srv.listener)
 }
 
 // Close shuts down the network port/socket
@@ -150,6 +157,11 @@ func NewServer(c *Config) (*Server, error) {
 			return nil, err
 		}
 		srv.Register(method.Name, handlerFn)
+	}
+
+	err := srv.listen()
+	if err != nil {
+		return nil, err
 	}
 	return srv, nil
 }

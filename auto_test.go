@@ -129,6 +129,7 @@ func TestAutoHandler(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Unexpected error: %s", err)
 	}
+	defer srv.Close()
 	expected := []struct {
 		request  *Request
 		expected []string
