@@ -154,7 +154,6 @@ func (srv *Server) createReply(r *Request, val interface{}) (ReplyWriter, error)
 	case *ChannelWriter:
 		return v, nil
 	case *MultiChannelWriter:
-		fmt.Println(Stderr, "New client")
 		for _, mcw := range v.Chans {
 			mcw.clientChan = r.ClientChan
 		}
