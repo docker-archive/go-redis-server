@@ -16,8 +16,9 @@ import (
 
 type Server struct {
 	sync.Mutex
-	Proto        string
-	Addr         string // TCP address to listen on, ":6389" if empty
+	Proto string // default, "tcp"
+	Addr  string // default,
+	// if Proto == unix then "/tmp/redis.sock" else ":6389"
 	MonitorChans []chan string
 	methods      map[string]HandlerFn
 	listener     net.Listener
@@ -28,10 +29,12 @@ func (srv *Server) listen() error {
 	if srv.Proto == "" {
 		srv.Proto = "tcp"
 	}
-	if srv.Proto == "unix" && addr == "" {
-		addr = "/tmp/redis.sock"
-	} else if addr == "" {
-		addr = ":6389"
+	if addr == "" {
+		if srv.Proto == "unix" {
+			addr = "/tmp/redis.sock"
+		} else {
+			addr = ":6389"
+		}
 	}
 	l, e := net.Listen(srv.Proto, addr)
 	if e != nil {
