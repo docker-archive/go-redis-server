@@ -7,6 +7,7 @@ package redis
 import (
 	"bufio"
 	"fmt"
+	"time"
 	// "io"
 	// "io/ioutil"
 	"net"
@@ -36,14 +37,22 @@ func (srv *Server) listen() error {
 			addr = ":6389"
 		}
 	}
-	l, e := net.Listen(srv.Proto, addr)
-	if e != nil {
-		return e
+	for i := 0; ; i++ {
+		l, e := net.Listen(srv.Proto, addr)
+		if e == nil {
+			srv.listener = l
+			break
+		} else if i < 30 {
+			// retry for devices that are still in ipv6
+			// duplicate address detection
+			time.Sleep(100 * time.Millisecond)
+		} else {
+			return e
+		}
 	}
-	srv.listener = l
 
 	// if port was 0 and proto is tcp, the listener would use a random port
-	srv.Addr = l.Addr().String()
+	srv.Addr = srv.listener.Addr().String()
 	return nil
 }
 
