@@ -46,7 +46,7 @@ func main() {
 	if err := srv.RegisterFct("test2", Test2); err != nil {
 		panic(err)
 	}
-	if err := srv.ListenAndServe(); err != nil {
+	if err := srv.Start(); err != nil {
 		panic(err)
 	}
 }
