@@ -3,7 +3,7 @@ package main
 import (
 	"fmt"
 
-	redis "github.com/dotcloud/go-redis-server"
+	redis "github.com/platinasystems/go-redis-server"
 )
 
 type MyHandler struct {
