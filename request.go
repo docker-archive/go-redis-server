@@ -1,16 +1,12 @@
 package redis
 
-import (
-	"io"
-	"strconv"
-)
+import "strconv"
 
 type Request struct {
 	Name       string
 	Args       [][]byte
 	Host       string
 	ClientChan chan struct{}
-	Body       io.ReadCloser
 }
 
 func (r *Request) HasArgument(index int) bool {

@@ -8,8 +8,7 @@ import (
 	"strings"
 )
 
-func parseRequest(conn io.ReadCloser) (*Request, error) {
-	r := bufio.NewReader(conn)
+func parseRequest(r *bufio.Reader) (*Request, error) {
 	// first line of redis request should be:
 	// *<number of arguments>CRLF
 	line, err := r.ReadString('\n')
@@ -21,7 +20,7 @@ func parseRequest(conn io.ReadCloser) (*Request, error) {
 
 	// Multiline request:
 	if line[0] == '*' {
-		if _, err := fmt.Sscanf(line, "*%d\r", &argsCount); err != nil {
+		if _, err := fmt.Sscanf(line, "*%d\r\n", &argsCount); err != nil {
 			return nil, malformed("*<numberOfArguments>", line)
 		}
 		// All next lines are pairs of:
@@ -43,7 +42,6 @@ func parseRequest(conn io.ReadCloser) (*Request, error) {
 		return &Request{
 			Name: strings.ToLower(string(firstArg)),
 			Args: args,
-			Body: conn,
 		}, nil
 	}
 
@@ -59,7 +57,6 @@ func parseRequest(conn io.ReadCloser) (*Request, error) {
 	return &Request{
 		Name: strings.ToLower(string(fields[0])),
 		Args: args,
-		Body: conn,
 	}, nil
 
 }
@@ -71,7 +68,7 @@ func readArgument(r *bufio.Reader) ([]byte, error) {
 		return nil, malformed("$<argumentLength>", line)
 	}
 	var argSize int
-	if _, err := fmt.Sscanf(line, "$%d\r", &argSize); err != nil {
+	if _, err := fmt.Sscanf(line, "$%d\r\n", &argSize); err != nil {
 		return nil, malformed("$<argumentSize>", line)
 	}
 
