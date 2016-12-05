@@ -7,6 +7,7 @@ package redis
 import (
 	"bufio"
 	"fmt"
+	"golang.org/x/net/netutil"
 	"io"
 	"io/ioutil"
 	"net"
@@ -20,7 +21,8 @@ type Server struct {
 	methods      map[string]HandlerFn
 }
 
-func (srv *Server) ListenAndServe() error {
+// ListenAndServe receives an argument maxConnection, which limit max connection it can accept simultaneous, passing maxConnection <= 0 means no limit.
+func (srv *Server) ListenAndServe(maxConnection int) error {
 	addr := srv.Addr
 	if srv.Proto == "" {
 		srv.Proto = "tcp"
@@ -33,6 +35,9 @@ func (srv *Server) ListenAndServe() error {
 	l, e := net.Listen(srv.Proto, addr)
 	if e != nil {
 		return e
+	}
+	if maxConnection > 0 {
+		l = netutil.LimitListener(l, maxConnection)
 	}
 	return srv.Serve(l)
 }
