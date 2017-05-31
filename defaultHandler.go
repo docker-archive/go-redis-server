@@ -311,6 +311,10 @@ func (h *DefaultHandler) Ping() (*StatusReply, error) {
 	return &StatusReply{Code: "PONG"}, nil
 }
 
+func (h *DefaultHandler) Quit() (*StatusReply, error) {
+	return nil, Quit
+}
+
 func (h *DefaultHandler) Subscribe(channels ...[]byte) (*MultiChannelWriter, error) {
 	if h.Database == nil {
 		h.Database = NewDatabase(nil)
