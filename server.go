@@ -6,7 +6,6 @@ package redis
 
 import (
 	"bufio"
-	"errors"
 	"fmt"
 	"time"
 	// "io"
@@ -15,8 +14,6 @@ import (
 	"reflect"
 	"sync"
 )
-
-var Quit = errors.New("QUIT")
 
 type Server struct {
 	sync.Mutex
@@ -92,11 +89,7 @@ func (srv *Server) Serve(l net.Listener) error {
 func (srv *Server) ServeClient(conn net.Conn) (err error) {
 	defer func() {
 		if err != nil {
-			if err == Quit {
-				conn.Write([]byte("+OK\r\n"))
-			} else {
-				fmt.Fprintf(conn, "-%s\n", err)
-			}
+			fmt.Fprintf(conn, "-%s\n", err)
 		}
 		conn.Close()
 	}()
@@ -134,6 +127,10 @@ func (srv *Server) ServeClient(conn net.Conn) (err error) {
 		request, err := parseRequest(reader)
 		if err != nil {
 			return err
+		}
+		if request.Name == "quit" {
+			fmt.Fprintln(conn, "+OK")
+			break
 		}
 		request.Host = clientAddr
 		request.ClientChan = clientChan
