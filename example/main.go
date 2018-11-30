@@ -2,7 +2,8 @@ package main
 
 import (
 	"fmt"
-	redis "github.com/dotcloud/go-redis-server"
+
+	redis "github.com/platinasystems/go-redis-server"
 )
 
 type MyHandler struct {
@@ -45,7 +46,7 @@ func main() {
 	if err := srv.RegisterFct("test2", Test2); err != nil {
 		panic(err)
 	}
-	if err := srv.ListenAndServe(); err != nil {
+	if err := srv.Start(); err != nil {
 		panic(err)
 	}
 }

@@ -105,7 +105,7 @@ func (srv *Server) handlerFn(autoHandler interface{}, f *reflect.Value, checkers
 			ret = result[0].Interface()
 			return srv.createReply(request, ret)
 		}
-		return &StatusReply{code: "OK"}, nil
+		return &StatusReply{Code: "OK"}, nil
 	}, nil
 }
 
@@ -148,13 +148,12 @@ func (srv *Server) createReply(r *Request, val interface{}) (ReplyWriter, error)
 	case *MonitorReply:
 		c := make(chan string)
 		srv.MonitorChans = append(srv.MonitorChans, c)
-		println("len monitor: ", len(srv.MonitorChans))
+		fmt.Println(Stderr, "len monitor: ", len(srv.MonitorChans))
 		v.c = c
 		return v, nil
 	case *ChannelWriter:
 		return v, nil
 	case *MultiChannelWriter:
-		println("New client")
 		for _, mcw := range v.Chans {
 			mcw.clientChan = r.ClientChan
 		}

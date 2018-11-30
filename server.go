@@ -5,35 +5,67 @@
 package redis
 
 import (
+	"bufio"
 	"fmt"
-	"io"
-	"io/ioutil"
+	"time"
+	// "io"
+	// "io/ioutil"
 	"net"
 	"reflect"
+	"sync"
 )
 
 type Server struct {
-	Proto        string
-	Addr         string // TCP address to listen on, ":6389" if empty
+	sync.Mutex
+	Proto string // default, "tcp"
+	Addr  string // default,
+	// if Proto == unix then "/tmp/redis.sock" else ":6389"
 	MonitorChans []chan string
 	methods      map[string]HandlerFn
+	listener     net.Listener
 }
 
-func (srv *Server) ListenAndServe() error {
+func (srv *Server) listen() error {
 	addr := srv.Addr
 	if srv.Proto == "" {
 		srv.Proto = "tcp"
 	}
-	if srv.Proto == "unix" && addr == "" {
-		addr = "/tmp/redis.sock"
-	} else if addr == "" {
-		addr = ":6389"
+	if addr == "" {
+		if srv.Proto == "unix" {
+			addr = "/tmp/redis.sock"
+		} else {
+			addr = ":6389"
+		}
 	}
-	l, e := net.Listen(srv.Proto, addr)
-	if e != nil {
-		return e
+	for i := 0; ; i++ {
+		l, e := net.Listen(srv.Proto, addr)
+		if e == nil {
+			srv.listener = l
+			break
+		} else if i < 30 {
+			// retry for devices that are still in ipv6
+			// duplicate address detection
+			time.Sleep(100 * time.Millisecond)
+		} else {
+			return e
+		}
 	}
-	return srv.Serve(l)
+
+	// if port was 0 and proto is tcp, the listener would use a random port
+	srv.Addr = srv.listener.Addr().String()
+	return nil
+}
+
+func (srv *Server) Start() error {
+	return srv.Serve(srv.listener)
+}
+
+// Close shuts down the network port/socket
+func (srv *Server) Close() error {
+	if srv.listener == nil {
+		return nil
+	}
+	return srv.listener.Close()
 }
 
 // Serve accepts incoming connections on the Listener l, creating a
@@ -65,15 +97,17 @@ func (srv *Server) ServeClient(conn net.Conn) (err error) {
 	clientChan := make(chan struct{})
 
 	// Read on `conn` in order to detect client disconnect
-	go func() {
-		// Close chan in order to trigger eventual selects
-		defer close(clientChan)
-		defer Debugf("Client disconnected")
-		// FIXME: move conn within the request.
-		if false {
-			io.Copy(ioutil.Discard, conn)
-		}
-	}()
+	/*
+		go func() {
+			// Close chan in order to trigger eventual selects
+			defer close(clientChan)
+			defer Debugf("Client disconnected")
+			// FIXME: move conn within the request.
+			if false {
+				io.Copy(ioutil.Discard, conn)
+			}
+		}()
+	*/
 
 	var clientAddr string
 
@@ -88,10 +122,15 @@ func (srv *Server) ServeClient(conn net.Conn) (err error) {
 		clientAddr = co.RemoteAddr().String()
 	}
 
+	reader := bufio.NewReader(conn)
 	for {
-		request, err := parseRequest(conn)
+		request, err := parseRequest(reader)
 		if err != nil {
 			return err
+		}
+		if request.Name == "quit" {
+			fmt.Fprintln(conn, "+OK")
+			break
 		}
 		request.Host = clientAddr
 		request.ClientChan = clientChan
@@ -126,15 +165,19 @@ func NewServer(c *Config) (*Server, error) {
 	rh := reflect.TypeOf(c.handler)
 	for i := 0; i < rh.NumMethod(); i++ {
 		method := rh.Method(i)
-		if method.Name[0] > 'a' && method.Name[0] < 'z' {
+		if method.Name[0] >= 'a' && method.Name[0] <= 'z' {
 			continue
 		}
-		println(method.Name)
 		handlerFn, err := srv.createHandlerFn(c.handler, &method.Func)
 		if err != nil {
 			return nil, err
 		}
 		srv.Register(method.Name, handlerFn)
+	}
+
+	err := srv.listen()
+	if err != nil {
+		return nil, err
 	}
 	return srv, nil
 }

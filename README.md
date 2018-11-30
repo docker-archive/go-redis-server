@@ -1,5 +1,3 @@
-[![Build Status](https://travis-ci.org/dotcloud/go-redis-server.png)](https://travis-ci.org/dotcloud/go-redis-server)
-
 Redis server protocol library
 =============================
 

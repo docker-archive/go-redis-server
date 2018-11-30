@@ -28,6 +28,9 @@ func (srv *Server) Register(name string, fn HandlerFn) {
 }
 
 func (srv *Server) Apply(r *Request) (ReplyWriter, error) {
+	srv.Lock()
+	defer srv.Unlock()
+
 	if srv == nil || srv.methods == nil {
 		Debugf("The method map is uninitialized")
 		return ErrMethodNotSupported, nil

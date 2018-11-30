@@ -8,10 +8,11 @@ import (
 )
 
 type (
-	HashValue   map[string][]byte
-	HashHash    map[string]HashValue
-	HashSub     map[string][]*ChannelWriter
-	HashBrStack map[string]*Stack
+	HashValue      map[string][]byte
+	HashHash       map[string]HashValue
+	HashSub        map[string][]*ChannelWriter
+	HashBrStack    map[string]*Stack
+	HashOrderedSet map[string]*OrderedSet
 )
 
 type Database struct {
@@ -23,15 +24,18 @@ type Database struct {
 	brstack HashBrStack
 
 	sub HashSub
+
+	orderedSet HashOrderedSet
 }
 
 func NewDatabase(parent *Database) *Database {
 	db := &Database{
-		values:   make(HashValue),
-		sub:      make(HashSub),
-		brstack:  make(HashBrStack),
-		children: map[int]*Database{},
-		parent:   parent,
+		values:     make(HashValue),
+		sub:        make(HashSub),
+		brstack:    make(HashBrStack),
+		children:   map[int]*Database{},
+		parent:     parent,
+		orderedSet: make(HashOrderedSet),
 	}
 	db.children[0] = db
 	return db
@@ -123,6 +127,12 @@ func (h *DefaultHandler) Lrange(key string, start, stop int) ([][]byte, error) {
 	if start < 0 {
 		if start = h.brstack[key].Len() + start; start < 0 {
 			start = 0
+		}
+	}
+
+	if stop < 0 {
+		if stop = h.brstack[key].Len() + stop; stop < 0 {
+			stop = 0
 		}
 	}
 
@@ -234,6 +244,9 @@ func (h *DefaultHandler) Hset(key, subkey string, value []byte) (int, error) {
 	if h.Database == nil {
 		h.Database = NewDatabase(nil)
 	}
+	if h.hvalues == nil {
+		h.hvalues = make(HashHash)
+	}
 	if _, exists := h.hvalues[key]; !exists {
 		h.hvalues[key] = make(HashValue)
 		ret = 1
@@ -281,8 +294,13 @@ func (h *DefaultHandler) Del(key string, keys ...string) (int, error) {
 			delete(h.values, k)
 			count++
 		}
-		if _, exists := h.hvalues[key]; exists {
+		if _, exists := h.hvalues[k]; exists {
 			delete(h.hvalues, k)
+			count++
+		}
+
+		if _, exists := h.brstack[k]; exists {
+			delete(h.brstack, k)
 			count++
 		}
 	}
@@ -290,7 +308,7 @@ func (h *DefaultHandler) Del(key string, keys ...string) (int, error) {
 }
 
 func (h *DefaultHandler) Ping() (*StatusReply, error) {
-	return &StatusReply{code: "PONG"}, nil
+	return &StatusReply{Code: "PONG"}, nil
 }
 
 func (h *DefaultHandler) Subscribe(channels ...[]byte) (*MultiChannelWriter, error) {
@@ -353,7 +371,7 @@ func (h *DefaultHandler) Select(key string) error {
 	h.dbs[h.currentDb] = h.Database
 	h.currentDb = index
 	if _, exists := h.dbs[index]; !exists {
-		println("DB not exits, create ", index)
+		fmt.Println(Stderr, "DB not exits, create ", index)
 		h.dbs[index] = NewDatabase(nil)
 	}
 	h.Database = h.dbs[index]
@@ -362,6 +380,145 @@ func (h *DefaultHandler) Select(key string) error {
 
 func (h *DefaultHandler) Monitor() (*MonitorReply, error) {
 	return &MonitorReply{}, nil
+}
+
+var lock = make(chan bool, 1)
+
+func (h *DefaultHandler) Incr(key string) (int, error) {
+	if h.Database == nil {
+		h.Database = NewDatabase(nil)
+	}
+
+	lock <- true
+
+	temp, _ := strconv.Atoi(string(h.values[key]))
+	temp = temp + 1
+	h.values[key] = []byte(strconv.Itoa(temp))
+
+	<-lock
+
+	return temp, nil
+}
+
+func (h *DefaultHandler) Decr(key string) (int, error) {
+	if h.Database == nil {
+		h.Database = NewDatabase(nil)
+	}
+
+	lock <- true
+
+	temp, _ := strconv.Atoi(string(h.values[key]))
+	temp = temp - 1
+	h.values[key] = []byte(strconv.Itoa(temp))
+
+	<-lock
+
+	return temp, nil
+}
+
+func (h *DefaultHandler) Expire(key, after string) (int, error) {
+	if h.Database == nil {
+		h.Database = NewDatabase(nil)
+	}
+
+	d, _ := strconv.Atoi(after)
+
+	time.AfterFunc(time.Duration(d)*time.Second, func() {
+		h.Del(key)
+	})
+
+	return 1, nil
+}
+
+func (h *DefaultHandler) Exists(key string) (int, error) {
+	if h.Database == nil {
+		h.Database = NewDatabase(nil)
+	}
+
+	_, exists := h.values[key]
+	if exists {
+		return 1, nil
+	} else {
+		return 0, nil
+	}
+}
+
+func (h *DefaultHandler) Zadd(key string, score int, value []byte, values ...[]byte) (int, error) {
+	values = append([][]byte{value}, values...)
+
+	if h.Database == nil {
+		h.Database = NewDatabase(nil)
+	}
+
+	if _, exists := h.orderedSet[key]; !exists {
+		h.orderedSet[key] = NewOrderedSet()
+	}
+
+	ctr := 0
+	for _, v := range values {
+		ctr = ctr + h.orderedSet[key].Add(score, v)
+	}
+
+	return ctr, nil
+}
+
+func (h *DefaultHandler) Zrange(key string, min int, max int) ([][]byte, error) {
+	if h.Database == nil {
+		h.Database = NewDatabase(nil)
+	}
+
+	if _, exists := h.orderedSet[key]; !exists {
+		return [][]byte{}, nil
+	}
+
+	r := h.orderedSet[key].Range(min, max)
+
+	return r, nil
+}
+
+func (h *DefaultHandler) Zrangebyscore(key string, min int, max int) ([][]byte, error) {
+	if h.Database == nil {
+		h.Database = NewDatabase(nil)
+	}
+
+	if _, exists := h.orderedSet[key]; !exists {
+		return [][]byte{}, nil
+	}
+
+	r := h.orderedSet[key].RangeByScore(min, max)
+
+	return r, nil
+}
+
+func (h *DefaultHandler) Zrem(key string, value []byte, values ...[]byte) (int, error) {
+	values = append([][]byte{value}, values...)
+
+	if h.Database == nil {
+		h.Database = NewDatabase(nil)
+	}
+
+	if _, exists := h.orderedSet[key]; !exists {
+		return 0, nil
+	}
+
+	ctr := 0
+	for _, v := range values {
+		ctr += h.orderedSet[key].Rem(v)
+	}
+
+	return ctr, nil
+}
+
+func (h *DefaultHandler) Zremrangebyscore(key string, min int, max int) (int, error) {
+	if h.Database == nil {
+		h.Database = NewDatabase(nil)
+	}
+
+	if _, exists := h.orderedSet[key]; !exists {
+		return 0, nil
+	}
+
+	return h.orderedSet[key].RemRangeByScore(min, max), nil
 }
 
 func NewDefaultHandler() *DefaultHandler {

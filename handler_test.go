@@ -9,6 +9,7 @@ func TestEmptyHandler(t *testing.T) {
 	c := make(chan struct{})
 	defer close(c)
 	srv := &Server{}
+	defer srv.Close()
 	reply, err := srv.ApplyString(&Request{})
 	if err != nil {
 		t.Fatalf("Unexpected error: %s", err)
@@ -23,6 +24,7 @@ func TestCustomHandler(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	defer srv.Close()
 	srv.Register("GET", func(r *Request) (ReplyWriter, error) {
 		return &BulkReply{value: []byte("42")}, nil
 	})
